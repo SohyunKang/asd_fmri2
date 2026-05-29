@@ -1,0 +1,9 @@
+/experiments
+/sae_rfe_results
+*.txt
+*.png
+/brain_figures
+/data
+*.mat
+*.csv
+/data/*.xlsx
