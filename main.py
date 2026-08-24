@@ -17,7 +17,7 @@ from dataset import FCDataset
 from model import HiTraNet
 from utils import set_seed, normalize_fc, accuracy_from_logits, AverageMeter
 from utils import load_roi_names_from_txt
-from viz_umap import extract_seed_step_graphrepr, save_umap_seed_trajectories
+from visualization.viz_umap import extract_seed_step_graphrepr, save_umap_seed_trajectories
 
 
 import matplotlib.pyplot as plt

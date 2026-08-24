@@ -13,7 +13,7 @@ from matplotlib.colors import Normalize
 # load outputs
 # -------------------------
 
-data = torch.load("/home/sohyunkang/asd_fmri2/experiments/w0_hitranet_20260310_172609_092015/fold1_best_aux.pt")
+data = torch.load("/data5/sohyunkang/experiments/w2_hitranet_20260410_020558_925507/fold1_best_aux.pt", weights_only=False)
 
 p = data["p"].numpy()     # (S,K,M,N)
 
