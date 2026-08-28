@@ -359,6 +359,7 @@ def extract_seed_step_graphrepr(
     split_name,
     steps,
     seed_indices,
+    seed_weights,
 ):
     model.eval()
 
@@ -370,13 +371,23 @@ def extract_seed_step_graphrepr(
     }
 
     sid_counter = 0
+    fixed_seed_indices = torch.as_tensor(
+        seed_indices, device=device, dtype=torch.long
+    )
+    fixed_seed_weights = torch.as_tensor(
+        seed_weights, device=device, dtype=torch.float32
+    )
 
     for batch in loader:
         fc = batch["fc"].to(device)
         y = batch["label"].to(device)
 
         A = fc_norm_fn(fc)
-        _, aux = model(A)
+        _, aux = model(
+            A,
+            seed_indices=fixed_seed_indices,
+            seed_weights=fixed_seed_weights,
+        )
 
         g_seed_list = aux["g_seed_list"]
         seeds_used = np.asarray(aux["seed_indices"])

@@ -30,30 +30,67 @@ def train_one_epoch(model, loader, optimizer, device, class_weights, fc_norm: st
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
 
-    for batch in loader:
-        fc = batch["fc"].to(device)          # (B,N,N)
-        y = batch["label"].to(device)        # (B,)
+    for batch_idx, batch in enumerate(loader):
 
-        A = normalize_fc(fc, method=fc_norm)
+        fc = batch["fc"].to(device)
+        y = batch["label"].to(device)
 
-        logits, _aux = model(A)
+        # A = normalize_fc(fc, method=fc_norm)
 
-        # loss = F.cross_entropy(logits, y)
-        loss = F.cross_entropy(logits, y, weight=class_weights, label_smoothing=0.05)
+        logits, _aux = model(fc)
 
-        cls_loss = F.cross_entropy(logits, y)
+        # cls_loss = F.cross_entropy(logits, y, label_smoothing=0.1)
+        # loss = F.cross_entropy(logits, y, weight=class_weights, label_smoothing=0.05)
+
+        cls_loss = F.cross_entropy(logits, y, weight=class_weights, label_smoothing=0.05)
         alpha = _aux["seed_weights"].to(device)  # (M,)
         entropy = -(alpha * torch.log(alpha + 1e-8)).sum()
-        loss = cls_loss - 0.01 * entropy
+        # loss = cls_loss - 0.0001 * entropy
+        loss = cls_loss
         # print("CE:", cls_loss.item(), "REG:", entropy.item(), "lam*reg:", (0.01*entropy).item())
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        # print("u_per grad mean:", model.periphery_seedness.u_per.grad.abs().mean().item())
-        # print("u_per grad max :", model.periphery_seedness.u_per.grad.abs().max().item())
-        # print("u_per mean:", model.periphery_seedness.u_per.data.mean().item())
-        # print("u_per std :", model.periphery_seedness.u_per.data.std().item())
+        grad = model.periphery_seedness.u_per.grad
+
+        with torch.no_grad():
+
+            seed_indices = _aux["seed_indices"].detach().long()
+
+            selected = torch.zeros_like(
+                grad,
+                dtype=torch.bool
+            )
+            selected[seed_indices] = True
+
+            # selected seed의 gradient만 약화
+            grad[selected] *= 0.01
+
+        if batch_idx == 0:
+
+            u = model.periphery_seedness.u_per.detach()
+            g = model.periphery_seedness.u_per.grad.detach()
+
+            top_idx = torch.topk(
+                u,
+                k=15,
+                largest=True
+            ).indices
+
+            print("\n[SEED RANK DEBUG]")
+
+            for rank, idx in enumerate(top_idx, start=1):
+
+                i = idx.item()
+
+                print(
+                    f"{rank:2d}. ROI={i:3d} | "
+                    f"score={u[i].item():+.6f} | "
+                    f"grad={g[i].item():+.6e}"
+                )
+
+
         optimizer.step()
 
         acc = accuracy_from_logits(logits, y)
@@ -69,7 +106,12 @@ def node_variance(H):
     return var.item()
 
 @torch.no_grad()
-def eval_one_epoch(model, loader, device, fc_norm: str) -> Dict[str, float]:
+def eval_one_epoch(
+    model,
+    loader,
+    device,
+    fc_norm: str,
+) -> Dict[str, float]:
     model.eval()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
@@ -83,14 +125,78 @@ def eval_one_epoch(model, loader, device, fc_norm: str) -> Dict[str, float]:
     all_p = []
     all_H = []
 
-    for batch in loader:
+    for batch_idx, batch in enumerate(loader):
         fc = batch["fc"].to(device)
         y = batch["label"].to(device)
         subjects = batch["sub_id"]
 
-        A = normalize_fc(fc, method=fc_norm)
+        # A = normalize_fc(fc, method=fc_norm)
 
-        logits, aux = model(A)
+        logits, aux = model(
+            fc,
+            debug=(batch_idx == 0),
+        )
+
+        if batch_idx == 0:
+
+            u = model.periphery_seedness.u_per.detach()
+            g = model.periphery_seedness.u_per.grad.detach()
+
+            top_idx = torch.topk(
+                u,
+                k=15,
+                largest=True
+            ).indices
+
+            print("\n[SEED RANK DEBUG]")
+
+            for rank, idx in enumerate(top_idx, start=1):
+
+                i = idx.item()
+
+                print(
+                    f"{rank:2d}. ROI={i:3d} | "
+                    f"score={u[i].item():+.6f} | "
+                    f"grad={g[i].item():+.6e}"
+                )
+        
+        if len(all_y) == 0:
+
+            g_last = aux["g_seed_list"][-1]   # (B,M,d)
+
+            per_seed_std = (
+                g_last
+                .std(dim=0)
+                .mean(dim=1)
+            )
+
+            alpha = aux["seed_weights"].to(g_last.device)
+
+            g_alpha = (
+                g_last
+                * alpha.view(1, -1, 1)
+            ).sum(dim=1)
+
+            print(
+                "[EVAL DEBUG] per-seed g std: "
+                f"mean={per_seed_std.mean().item():.6f}, "
+                f"max={per_seed_std.max().item():.6f}"
+            )
+
+            print(
+                "[EVAL DEBUG] alpha g std:",
+                g_alpha.std(dim=0).mean().item()
+            )
+
+
+            if "g_bar_list" in aux:
+                g_attn = aux["g_bar_list"][-1]
+
+                print(
+                    "[EVAL DEBUG] attention g std:",
+                    g_attn.std(dim=0).mean().item()
+                )
+
         loss = F.cross_entropy(logits, y)
 
         acc = accuracy_from_logits(logits, y)
@@ -136,6 +242,30 @@ def eval_one_epoch(model, loader, device, fc_norm: str) -> Dict[str, float]:
     y_true = np.concatenate(all_y, axis=0)
     y_score = np.concatenate(all_p1, axis=0)
     y_pred = np.concatenate(all_pred, axis=0)
+
+    # ============================================================
+    # Validation probability distribution check
+    # ============================================================
+
+    mask0 = (y_true == 0)
+    mask1 = (y_true == 1)
+
+    mean0 = y_score[mask0].mean() if mask0.sum() > 0 else float("nan")
+    std0  = y_score[mask0].std()  if mask0.sum() > 0 else float("nan")
+
+    mean1 = y_score[mask1].mean() if mask1.sum() > 0 else float("nan")
+    std1  = y_score[mask1].std()  if mask1.sum() > 0 else float("nan")
+
+    pred_pos_ratio = (y_score >= 0.5).mean()
+
+    print(
+        f"[VAL PROB] "
+        f"y=0: {mean0:.4f} ± {std0:.4f} | "
+        f"y=1: {mean1:.4f} ± {std1:.4f} | "
+        f"min={y_score.min():.4f} | "
+        f"max={y_score.max():.4f} | "
+        f"pred_pos_ratio@0.5={pred_pos_ratio:.4f}"
+    )
 
     try:
         auc = float(roc_auc_score(y_true, y_score))
@@ -277,7 +407,6 @@ def fc_stats(dataset, indices):
         "abs_mean": np.mean(abs_means),
     }
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", type=str, default="data/abide_subjects_fc_with_demo_260202.xlsx")
@@ -287,9 +416,9 @@ def main():
     parser.add_argument("--n_classes", type=int, default=2)
 
     parser.add_argument("--d_model", type=int, default=96)
-    parser.add_argument("--n_hops", type=int, default=5)
-    parser.add_argument("--depth", type=int, default=3)
-    parser.add_argument("--top_m", type=int, default=10)
+    parser.add_argument("--n_hops", type=int, default=3)
+    parser.add_argument("--depth", type=int, default=2)
+    parser.add_argument("--top_m", type=int, default=116)
     parser.add_argument("--seed_std", type=float, default=0.5)
 
     parser.add_argument("--mlp_hidden", type=int, default=128)
@@ -298,16 +427,16 @@ def main():
 
     parser.add_argument("--fc_norm", type=str, default="row", choices=["row", "sym", "none"])
 
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--seed_lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--seed_lr", type=float, default=3e-4)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epochs", type=int, default=250)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--random_seed", type=int, default=42)
     parser.add_argument("--fold", type=int, default=None, help="Run only a specific fold (1-based index)")
 
     parser.add_argument("--n_splits", type=int, default=5)
-    parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--worker_id", type=int, default=0)
     
     parser.add_argument("--vis", type=bool, default=False)
@@ -315,13 +444,14 @@ def main():
     
     args = parser.parse_args()
 
-    set_seed(args.seed)
+    set_seed(args.random_seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Device:", device)
 
     # for log save
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    exp_dir = f"/data5/sohyunkang/experiments/w{args.worker_id}_hitranet_{timestamp}"
+    exp_dir = f"./experiments/w{args.worker_id}_hitranet_{timestamp}"
     os.makedirs(exp_dir, exist_ok=True)
 
     print("Experiment dir:", exp_dir)
@@ -389,7 +519,7 @@ def main():
     aal_roi_names = load_roi_names_from_txt(args.aal_txt)
     assert len(aal_roi_names) == args.n_rois, f"ROI names ({len(aal_roi_names)}) != n_rois ({args.n_rois})"
 
-    skf = StratifiedKFold(n_splits=args.n_splits, shuffle=True, random_state=args.seed)
+    skf = StratifiedKFold(n_splits=args.n_splits, shuffle=True, random_state=42)
 
     fold_best_aucs: List[float] = []
     fold_best_accs: List[float] = []
@@ -403,6 +533,7 @@ def main():
             continue
 
         print(f"\n========== Fold {fold}/{args.n_splits} ==========")
+        set_seed(args.random_seed)
 
         # ===== class weight 계산 (train set 기준) =====
         train_labels = labels[train_idx]
@@ -481,6 +612,12 @@ def main():
 
         model = build_model(args, device)
 
+        initial_u_per = (
+            model.periphery_seedness.u_per
+            .detach()
+            .clone()
+        )
+
         # Save Model Architecture
         if fold == 1:
             with open(os.path.join(exp_dir, "model_arch.txt"), "w") as f:
@@ -505,12 +642,18 @@ def main():
         }
         best_path = os.path.join(exp_dir, f"fold{fold}_best_model.pt")
         
+        import time
 
         for epoch in range(1, args.epochs + 1):
+            start = time.time()
+            model.current_epoch = epoch
             tr = train_one_epoch(model, train_loader, optimizer, device, class_weights, fc_norm=args.fc_norm)
-            print(model.topm_seeds())
-            # print(model.periphery_seedness())
-            va = eval_one_epoch(model, val_loader, device, fc_norm=args.fc_norm)
+            va = eval_one_epoch(
+                model,
+                val_loader,
+                device,
+                fc_norm=args.fc_norm,
+            )
 
             with open(log_path, "a", newline="") as f:
                 writer = csv.writer(f)
@@ -541,42 +684,45 @@ def main():
                 f"you_acc={va['youden_acc']:.4f}, "
                 f"you_sens={va['youden_sensitivity']:.4f}, "
                 f"you_spec={va['youden_specificity']:.4f}, "
-                f"thr={va['youden_threshold']:.4f}"
+                f"thr={va['youden_threshold']:.4f}, "
+                f"time={time.time()-start:.2f} sec"
             )
 
-            if args.vis and (epoch % 10 == 0 or epoch == args.epochs):
-                steps = list(range(1, args.n_hops + 1))
+            # if args.vis and (epoch % 10 == 0 or epoch == args.epochs):
+            #     steps = list(range(1, args.n_hops + 1))
 
-                # 현재 epoch에서의 top-m seed를 가져오기
-                with torch.no_grad():
-                    seed_idx_t, _ = model.topm_seeds()
-                seed_indices = seed_idx_t.detach().cpu().numpy()  # (M,)
+            #     fc_norm_fn = lambda fc: normalize_fc(fc, method=args.fc_norm)
 
-                fc_norm_fn = lambda fc: normalize_fc(fc, method=args.fc_norm)
+            #     train_pack = extract_seed_step_graphrepr(
+            #         model, train_loader, device, fc_norm_fn,
+            #         split_name="train", steps=steps, seed_indices=seed_indices,
+            #         seed_weights=train_seed_weight,
+            #     )
+            #     val_pack = extract_seed_step_graphrepr(
+            #         model, val_loader, device, fc_norm_fn,
+            #         split_name="val", steps=steps, seed_indices=seed_indices,
+            #         seed_weights=train_seed_weight,
+            #     )
+            #     umap_dir = os.path.join(exp_dir, "umap")
+            #     os.makedirs(umap_dir, exist_ok=True)
 
-                train_pack = extract_seed_step_graphrepr(
-                    model, train_loader, device, fc_norm_fn,
-                    split_name="train", steps=steps, seed_indices=seed_indices
-                )
-                val_pack = extract_seed_step_graphrepr(
-                    model, val_loader, device, fc_norm_fn,
-                    split_name="val", steps=steps, seed_indices=seed_indices
-                )
-                umap_dir = os.path.join(exp_dir, "umap")
-                os.makedirs(umap_dir, exist_ok=True)
-
-                save_umap_seed_trajectories(
-                    train_pack,
-                    val_pack,
-                    epoch=epoch,
-                    save_dir=umap_dir,
-                    fold=fold,
-                    roi_names=aal_roi_names
-                )              
+            #     save_umap_seed_trajectories(
+            #         train_pack,
+            #         val_pack,
+            #         epoch=epoch,
+            #         save_dir=umap_dir,
+            #         fold=fold,
+            #         roi_names=aal_roi_names
+            #     )              
 
 
             if va["auc"] > best_val_auc:
-                tr_eval = eval_one_epoch(model, train_loader, device, fc_norm=args.fc_norm)
+                tr_eval = eval_one_epoch(
+                    model,
+                    train_loader,
+                    device,
+                    fc_norm=args.fc_norm,
+                )
                 best_val_auc = va["auc"]
                 best_metrics["epoch"] = epoch
                 best_metrics["acc"] = va["acc"]
@@ -591,13 +737,20 @@ def main():
                 
                 if args.save_model:
                     torch.save(
-                        {"model": model.state_dict(), "args": vars(args), "fold": fold, "best_metrics": best_metrics},
+                        {
+                            "model": model.state_dict(),
+                            "args": vars(args),
+                            "fold": fold,
+                            "best_metrics": best_metrics,
+                        },
                         best_path,
                     )
                     
                 aux_path = os.path.join(exp_dir, f"fold{fold}_best_aux.pt")
 
                 seed_idx, seed_w = model.topm_seeds()
+                seed_idx_cpu = seed_idx.detach().cpu()
+                seed_w_cpu = seed_w.detach().cpu()
 
                 torch.save({
                         "epoch": epoch,
@@ -625,41 +778,44 @@ def main():
                         # -----------------------
                         # seeds
                         # -----------------------
-                        "seed_indices": seed_idx.cpu(),
-                        "seed_weights": seed_w.cpu(),
+                        "seed_indices": seed_idx.detach().cpu(),
+                        "seed_weights": seed_w.detach().cpu(),
 
                     }, aux_path)
 
                 print(
-                f"  saved: {best_path} "
-                f"(best val auc={best_val_auc:.4f}, "
-                f"acc={best_metrics['acc']:.4f}, "
-                f"sens={best_metrics['sensitivity']:.4f}, "
-                f"spec={best_metrics['specificity']:.4f}, "
-                f"you_acc={best_metrics['youden_acc']:.4f}, "
-                f"you_sens={best_metrics['youden_sensitivity']:.4f}, "
-                f"you_spec={best_metrics['youden_specificity']:.4f}, "
-                f"thr={best_metrics['youden_threshold']:.4f}, "
-                f"epoch={best_metrics['epoch']})"
-            )
-        
-        fold_result = {
-            "fold": fold,
-            "auc": best_val_auc,
-            "acc": best_metrics["acc"],
-            "sensitivity": best_metrics["sensitivity"],
-            "specificity": best_metrics["specificity"],
+                f" * [saved: {best_path}] "
+                f"(best val auc={best_val_auc:.4f}) "
+                )
+            
+                order = torch.argsort(
+                    seed_w_cpu,
+                    descending=True
+                )
 
-            "youden_threshold": best_metrics["youden_threshold"],
-            "youden_acc": best_metrics["youden_acc"],
-            "youden_sensitivity": best_metrics["youden_sensitivity"],
-            "youden_specificity": best_metrics["youden_specificity"],
+                sorted_seed_idx = seed_idx_cpu[order]
+                sorted_seed_w = seed_w_cpu[order]
 
-            "epoch": best_metrics["epoch"],
-        }
+                fold_result = {
+                    "fold": fold,
+                    "auc": best_val_auc,
+                    "acc": best_metrics["acc"],
+                    "sensitivity": best_metrics["sensitivity"],
+                    "specificity": best_metrics["specificity"],
 
-        with open(os.path.join(exp_dir, f"fold{fold}_metrics.json"), "w") as f:
-            json.dump(fold_result, f, indent=4)
+                    "youden_threshold": best_metrics["youden_threshold"],
+                    "youden_acc": best_metrics["youden_acc"],
+                    "youden_sensitivity": best_metrics["youden_sensitivity"],
+                    "youden_specificity": best_metrics["youden_specificity"],
+
+                    "epoch": best_metrics["epoch"],
+
+                    "seed_indices": sorted_seed_idx.tolist(),
+                    "seed_weights": sorted_seed_w.tolist(),
+                }
+
+                with open(os.path.join(exp_dir, f"fold{fold}_metrics.json"), "w") as f:
+                    json.dump(fold_result, f, indent=4)
 
         fold_best_aucs.append(best_val_auc)
         fold_best_accs.append(best_metrics["acc"])
@@ -691,19 +847,50 @@ def main():
         print(f"SENS Mean ± Std: {np.mean(fold_best_sens):.4f} ± {np.std(fold_best_sens):.4f}")
         print(f"SPEC Mean ± Std: {np.mean(fold_best_specs):.4f} ± {np.std(fold_best_specs):.4f}")
 
+        # =========================
+        # Fold별 결과
+        # =========================
+        fold_results = []
+
+        for i, (auc, acc, sens, spec) in enumerate(zip(
+            fold_best_aucs,
+            fold_best_accs,
+            fold_best_sens,
+            fold_best_specs
+        )):
+            fold_results.append({
+                "fold": i + 1,
+                "auc": float(auc),
+                "acc": float(acc),
+                "sens": float(sens),
+                "spec": float(spec),
+            })
+
+        # =========================
+        # 전체 CV 결과
+        # =========================
         cv_results = {
-            "auc_mean": float(np.mean(fold_best_aucs)),
-            "auc_std": float(np.std(fold_best_aucs)),
-            "acc_mean": float(np.mean(fold_best_accs)),
-            "acc_std": float(np.std(fold_best_accs)),
-            "sens_mean": float(np.mean(fold_best_sens)),
-            "sens_std": float(np.std(fold_best_sens)),
-            "spec_mean": float(np.mean(fold_best_specs)),
-            "spec_std": float(np.std(fold_best_specs)),
+            "folds": fold_results,
+
+            "mean": {
+                "auc": float(np.mean(fold_best_aucs)),
+                "acc": float(np.mean(fold_best_accs)),
+                "sens": float(np.mean(fold_best_sens)),
+                "spec": float(np.mean(fold_best_specs)),
+            },
+
+            "std": {
+                "auc": float(np.std(fold_best_aucs)),
+                "acc": float(np.std(fold_best_accs)),
+                "sens": float(np.std(fold_best_sens)),
+                "spec": float(np.std(fold_best_specs)),
+            }
         }
 
         with open(os.path.join(exp_dir, "cv_results.json"), "w") as f:
             json.dump(cv_results, f, indent=4)
+
+        print(f"Saved CV results: {os.path.join(exp_dir, 'cv_results.json')}")
 
 
 if __name__ == "__main__":

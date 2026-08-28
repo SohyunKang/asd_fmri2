@@ -14,13 +14,13 @@ class PeripherySeedness(nn.Module):
         super().__init__()
         self.u_per = nn.Parameter(torch.zeros(n_rois))  # logits
         # randomness added
-        nn.init.normal_(self.u_per, std=0.1)
+        # nn.init.normal_(self.u_per, std=0.1)
 
     def forward(self) -> torch.Tensor:
         # return torch.sigmoid(self.u_per)  # (N,)
         return self.u_per  # (N,)
 
-
+    
 class GraphDeepBlock(nn.Module):
     """Node-wise deep block (no A), PreNorm-FFN-Residual."""
     def __init__(
@@ -83,26 +83,23 @@ class EdgeGatedPropagation(nn.Module):
 
     def forward(self, A: torch.Tensor, H_bar: torch.Tensor) -> torch.Tensor:
         B, N, _ = A.shape
+
         q = self.Wq(H_bar)
         k = self.Wk(H_bar)
 
-        # A = torch.abs(A)
-        A = A + 1
-        # A = A / (A.sum(-1, keepdim=True) + 1e-8)
+        # FC [-1, 1] -> [0, 2] before logarithmic prior
+        A_pos = A + 1.0
 
-        score = torch.bmm(q, k.transpose(1, 2)) / math.sqrt(self.d_k)  # (B,N,N)
-        
-        # 1. attention
-        # attn = F.softmax(score, dim=-1)                                 # (B,N,N)
+        score = torch.bmm(
+            q,
+            k.transpose(1, 2)
+        ) / math.sqrt(self.d_k)
 
-        # # FC 구조 반영: attn을 A로 gate하고 row-renorm
-        # P = attn * A
-        # P = P / (P.sum(dim=-1, keepdim=True) + 1e-8)
-        
-        # 2. 
-        score = score + torch.log(A + self.eps)
+        fc_log = torch.log(A_pos + self.eps)
+        score_fc = score + fc_log
 
-        P = F.softmax(score, dim=-1)
+        # Sharpen row-wise transition distribution
+        P = F.softmax(score_fc / 0.1, dim=-1)
 
         return P
 
@@ -162,6 +159,21 @@ class SeedHopEncoder(nn.Module):
         ])
         self.out_norm = nn.LayerNorm(d_model)
 
+        # ============================================================
+        # seed-specific learnable aggregation
+        # ============================================================
+        self.seed_proj = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.GELU(),
+            nn.LayerNorm(d_model)
+        )
+
+        self.seed_attn = nn.Linear(
+            d_model,
+            1,
+            bias=False
+        )
+
     @staticmethod
     def _bmm_seed_p(p: torch.Tensor, P: torch.Tensor) -> torch.Tensor:
         """
@@ -190,12 +202,89 @@ class SeedHopEncoder(nn.Module):
         out = torch.bmm(P2, X2)                # (BM,N,d)
         return out.reshape(B, M, N, d)
 
+    def aggregate_seeds(
+        self,
+        g_seed: torch.Tensor,
+        seed_weights: torch.Tensor
+    ):
+        """
+        g_seed:
+            (B, M, d)
+
+        seed_weights:
+            (M,)
+            global Entmax seed weights alpha
+
+        Returns
+        -------
+        g_bar:
+            (B, d)
+
+        beta:
+            (B, M)
+            subject-specific seed aggregation weights
+
+        h_seed:
+            (B, M, d)
+            projected seed-specific representations
+        """
+
+        # --------------------------------------------------------
+        # 1. seed-specific nonlinear projection
+        # --------------------------------------------------------
+        h_seed = self.seed_proj(g_seed)
+        # (B,M,d)
+
+        # --------------------------------------------------------
+        # 2. subject-specific attention score
+        # --------------------------------------------------------
+        score = self.seed_attn(
+            h_seed
+        ).squeeze(-1)
+        # (B,M)
+
+        # --------------------------------------------------------
+        # 3. global alpha as prior
+        #
+        # softmax(score + log(alpha))
+        # ∝ alpha * exp(score)
+        # --------------------------------------------------------
+        log_alpha = torch.log(
+            seed_weights.clamp_min(1e-8)
+        )
+
+        score = (
+            score
+            + log_alpha.unsqueeze(0)
+        )
+
+        # --------------------------------------------------------
+        # 4. subject-specific seed attention
+        # --------------------------------------------------------
+        beta = F.softmax(
+            score,
+            dim=1
+        )
+        # (B,M)
+
+        # --------------------------------------------------------
+        # 5. learnable aggregation
+        # --------------------------------------------------------
+        g_bar = (
+            h_seed
+            * beta.unsqueeze(-1)
+        ).sum(dim=1)
+        # (B,d)
+
+        return g_bar, beta, h_seed
+
     def forward(
         self,
         A: torch.Tensor,
         seed_indices: torch.Tensor,     # (M,)
         seed_weights: torch.Tensor,     # (M,)  (already normalized alpha)
         return_all: bool = True,
+        debug: bool = False,
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """
         A: (B,N,N) normalized FC (row-norm recommended)
@@ -223,7 +312,8 @@ class SeedHopEncoder(nn.Module):
         id_feat = id_feat.unsqueeze(0).expand(B, -1, -1)   # (B,N,d)
 
         # combine
-        deg_feat = fc_feat + id_feat
+        # deg_feat = fc_feat + id_feat
+        deg_feat = fc_feat
 
         # 3️⃣ seed 채널 차원 추가
         X = deg_feat.unsqueeze(1).repeat(1, M, 1, 1)  # (B,M,N,d)
@@ -238,14 +328,32 @@ class SeedHopEncoder(nn.Module):
 
         P_list: List[torch.Tensor] = []
         p_list: List[torch.Tensor] = []
+
         g_seed_list: List[torch.Tensor] = []
+        h_seed_list: List[torch.Tensor] = []
+
         g_bar_list: List[torch.Tensor] = []
+        beta_list: List[torch.Tensor] = []
+
         H_list: List[torch.Tensor] = []
 
         # ----- init p_all^(0): ALL-seed arrival, p_all[b, i, j] = reach j from seed i -----
         I = torch.eye(N, device=device, dtype=A.dtype).unsqueeze(0).expand(B, -1, -1)  # (B,N,N)
         p_all = I.clone()
         p_all_list: List[torch.Tensor] = []
+
+        # compact debug buffers (only used when debug=True)
+        debug_p_entropy: List[float] = []
+        debug_p_std: List[float] = []
+
+        debug_x_in_std: List[float] = []
+        debug_z_std: List[float] = []
+        debug_xprop_std: List[float] = []
+        debug_xres_std: List[float] = []
+        debug_x_std: List[float] = []
+
+        debug_g_std: List[float] = []
+
 
         # hop recurrence
         for k in range(1, self.n_hops + 1):
@@ -257,6 +365,13 @@ class SeedHopEncoder(nn.Module):
             # H_bar = H_bar / (alpha.sum(dim=1) + 1e-8)
 
             P = self.propagation(A, H_bar)  # (B,N,N)
+
+            if debug:
+                entropy = -(P * torch.log(P + 1e-12)).sum(dim=-1).mean()
+                norm_entropy = entropy / math.log(P.size(-1))
+                debug_p_entropy.append(float(norm_entropy.item()))
+                debug_p_std.append(float(P.std(dim=0).mean().item()))
+
             # update ALL-seed arrivals: p_all = p_all @ P  => (B,N,N)
             p_all = torch.bmm(p_all, P)
             p_all_list.append(p_all)
@@ -265,63 +380,215 @@ class SeedHopEncoder(nn.Module):
 
             # update flow p: (B,M,N)
             p = self._bmm_seed_p(p, P)
+
             p_list.append(p)
 
+            # ============================================================
             # propagate node features with the same P
-            Z = self._bmm_seed_X(P, X)          # (B,M,N,d)
-            # X_new = torch.matmul(Z, self.W)     # (B,M,N,d)
+            # ============================================================
 
-            # residual 추가
-            X_new = 0.3 * torch.matmul(Z, self.W) + 0.7 * X
+            # input to this hop
+            X_in = X
 
-            # residual
-            # X_new = X_new + X
-            # deep blocks (node-wise)
-            X_new = self.deep(X_new)
-            X = self.out_norm(X_new)
+            # P propagation
+            Z = self._bmm_seed_X(P, X_in)       # (B,M,N,d)
+
+            # feature transformation
+            X_prop = torch.matmul(Z, self.W)    # (B,M,N,d)
+
+            # residual mixing
+            X_res = 0.1 * X_prop + 0.9 * X_in
+
+            # deep blocks
+            X_deep = self.deep(X_res)
+
+            # output normalization
+            # X = self.out_norm(X_deep)
+            X = X_deep
+
+            if debug:
+                # subject-wise variability:
+                # std over B first, then average over seed/node/feature dimensions
+                debug_x_in_std.append(
+                    float(X_in.std(dim=0).mean().item())
+                )
+                debug_z_std.append(
+                    float(Z.std(dim=0).mean().item())
+                )
+                debug_xprop_std.append(
+                    float(X_prop.std(dim=0).mean().item())
+                )
+                debug_xres_std.append(
+                    float(X_res.std(dim=0).mean().item())
+                )
+                debug_x_std.append(
+                    float(X.std(dim=0).mean().item())
+                )
 
             H_list.append(X.detach())
 
-            # flow-weighted pooling: g_{b,s}^{(k)} = sum_j p_{b,s}[j] * X_{b,s}[j,:]
-            g_seed = torch.einsum("bmn,bmnd->bmd", p, X)  # (B,M,d)
+            # ============================================================
+            # seed-specific trajectory
+            # ============================================================
+
+            g_seed = torch.einsum(
+                "bmn,bmnd->bmd",
+                p,
+                X
+            )
+            # (B,M,d)
+
+            if debug:
+                debug_g_std.append(float(g_seed.std(dim=0).mean().item()))
+
+            # raw seed-specific trajectory는 그대로 저장
             g_seed_list.append(g_seed)
 
-            # fixed seed integration: \bar g^{(k)} = sum_s alpha_s g_s^{(k)}
-            g_bar = torch.einsum("m,bmd->bd", seed_weights, g_seed)  # (B,d)
+
+            # ============================================================
+            # NEW: subject-specific learnable seed aggregation
+            # ============================================================
+
+            # attention 계산은 그대로 유지
+            g_bar_attn, beta, h_seed = self.aggregate_seeds(
+                g_seed,
+                seed_weights
+            )
+
+            # 실제 classifier에는 원래 alpha-weighted aggregation 사용
+            g_bar = torch.einsum(
+                "m,bmd->bd",
+                seed_weights,
+                g_seed
+            )
+
+            # classifier에서 실제 사용하는 representation
             g_bar_list.append(g_bar)
+
+            # analysis / visualization
+            beta_list.append(beta)
+            h_seed_list.append(h_seed)
+
+        if debug:
+            p_ent_str = " -> ".join(f"{v:.4f}" for v in debug_p_entropy)
+            p_std_str = " -> ".join(f"{v:.6f}" for v in debug_p_std)
+
+            x_in_str = " -> ".join(f"{v:.6f}" for v in debug_x_in_std)
+            z_str = " -> ".join(f"{v:.6f}" for v in debug_z_std)
+            xprop_str = " -> ".join(f"{v:.6f}" for v in debug_xprop_std)
+            xres_str = " -> ".join(f"{v:.6f}" for v in debug_xres_std)
+            x_std_str = " -> ".join(f"{v:.6f}" for v in debug_x_std)
+
+            g_std_str = " -> ".join(f"{v:.6f}" for v in debug_g_std)
+
+            print(
+                "[DEBUG ENCODER]\n"
+                f"  P entropy : {p_ent_str}\n"
+                f"  P std     : {p_std_str}\n"
+                f"  X_in std  : {x_in_str}\n"
+                f"  Z std     : {z_str}\n"
+                f"  Xprop std : {xprop_str}\n"
+                f"  Xres std  : {xres_str}\n"
+                f"  Xout std  : {x_std_str}\n"
+                f"  g std     : {g_std_str}"
+            )
 
         # concat hop-level integrated embeddings -> subject rep
         g = torch.cat(g_bar_list, dim=-1)  # (B,K*d)
 
         aux: Dict[str, Any] = {
-            "seed_indices": seed_indices.detach().cpu(),      # (M,)
-            # "seed_weights": seed_weights.detach().cpu(),      # (M,)
-            "seed_weights": seed_weights,      # (M,)
-            "P_list": [t.detach() for t in P_list],           # list of (B,N,N)
-            "p_list": [t.detach() for t in p_list],           # list of (B,M,N)
-            "g_seed_list": [t.detach() for t in g_seed_list], # list of (B,M,d)
-            "g_bar_list": [t.detach() for t in g_bar_list],   # list of (B,d)
-            "g": g.detach(),                                  # (B,K*d)
-            "p_all_list": [t.detach() for t in p_all_list],     # list of (B,N,N), length K
-            "arrival_all": p_all_list[-1].detach() if len(p_all_list) > 0 else None,  # (B,N,N),
-            "H_list": H_list,
+            "seed_indices": seed_indices.detach().cpu(),
 
+            # global seed relevance
+            "seed_weights": seed_weights,
+
+            "P_list": [
+                t.detach()
+                for t in P_list
+            ],
+
+            "p_list": [
+                t.detach()
+                for t in p_list
+            ],
+
+            # raw seed-specific trajectory
+            "g_seed_list": [
+                t.detach()
+                for t in g_seed_list
+            ],
+
+            # projected seed-specific trajectory
+            "h_seed_list": [
+                t.detach()
+                for t in h_seed_list
+            ],
+
+            # subject/hop-specific aggregation weight
+            "beta_list": [
+                t.detach()
+                for t in beta_list
+            ],
+
+            # final hop-level representation
+            "g_bar_list": [
+                t.detach()
+                for t in g_bar_list
+            ],
+
+            "g": g.detach(),
+
+            "p_all_list": [
+                t.detach()
+                for t in p_all_list
+            ],
+
+            "arrival_all": (
+                p_all_list[-1].detach()
+                if len(p_all_list) > 0
+                else None
+            ),
+
+            "H_list": H_list,
         }
         return g, aux
 
 
 class MLPHead(nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int, n_classes: int, dropout: float = 0.2):
+    def __init__(
+        self,
+        in_dim: int,
+        hidden_dim: int,
+        n_classes: int,
+        dropout: float = 0.2
+    ):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, n_classes),
-        )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        self.input_norm = nn.LayerNorm(in_dim)
+        self.fc1 = nn.Linear(in_dim, hidden_dim)
+        self.act = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(hidden_dim, n_classes)
+
+    def forward(self, x: torch.Tensor, debug: bool = False) -> torch.Tensor:
+        x_norm = self.input_norm(x)
+        h = self.fc1(x_norm)
+        h = self.act(h)
+        h = self.dropout(h)
+        logits = self.fc2(h)
+
+        if debug:
+            print(
+                "[DEBUG HEAD] "
+                f"g={x.std(dim=0).mean().item():.6f} | "
+                f"norm={x_norm.std(dim=0).mean().item():.6f} | "
+                f"hidden={h.std(dim=0).mean().item():.6f} | "
+                f"logits0={logits[:, 0].std().item():.6f} | "
+                f"logits1={logits[:, 1].std().item():.6f}"
+            )
+
+        return logits
+
 
 
 class HiTraNet(nn.Module):
@@ -366,23 +633,6 @@ class HiTraNet(nn.Module):
         )
         self.head = MLPHead(in_dim=n_hops * d_model, hidden_dim=mlp_hidden, n_classes=n_classes, dropout=dropout)
 
-    def topm_seeds_st(self, tau: float = 1.0):
-        """
-        returns:
-          seed_indices: (M,)
-          seed_weights: (M,) normalized alpha (sum=1)
-        """
-        s = self.periphery_seedness()  # (N,)
-        M = min(self.top_m, s.numel())
-
-        # Gumbel TopK
-        seed_indices = self.gumbel_topk(s, M, tau)  # (M,)
-
-        # weights
-        w = s[seed_indices]
-        seed_weights = F.softmax(w, dim=0)
-
-        return seed_indices, seed_weights
 
     def gumbel_topk(self, logits, k, tau=1.0):
         U = torch.rand_like(logits) # [0,1)
@@ -393,33 +643,181 @@ class HiTraNet(nn.Module):
 
         return idx
 
-    @torch.no_grad()
-    def topm_seeds(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        returns:
-          seed_indices: (M,)
-          seed_weights: (M,) normalized alpha (sum=1)
-        """
-        s = self.periphery_seedness()  # (N,)
-        M = min(self.top_m, s.numel())
+    # entmax 버전
+    # def topm_seeds_train(self):
 
-        # Just TopK
-        seed_indices = torch.topk(s, k=M, largest=True).indices  # (M,)
-        
-        # weights
-        w = s[seed_indices]
-        seed_weights = F.softmax(w, dim=0)
+    #     from entmax import entmax15
+
+    #     s = self.periphery_seedness()
+    #     M = min(self.top_m, s.numel())
+
+    #     # exploration only for selecting indices
+    #     U = torch.rand_like(s).clamp_(1e-6, 1.0 - 1e-6)
+    #     g = -torch.log(-torch.log(U))
+
+    #     noisy_s = s + 0 * g
+
+    #     seed_indices = torch.topk(
+    #         noisy_s,
+    #         k=M,
+    #         largest=True
+    #     ).indices
+
+    #     # clean seedness로 deterministic weight 계산
+    #     alpha_all = entmax15(
+    #         s / 0.3,
+    #         dim=0
+    #     )
+
+    #     seed_weights = alpha_all[seed_indices]
+
+    #     seed_weights = (
+    #         seed_weights /
+    #         seed_weights.sum().clamp_min(1e-8)
+    #     )
+
+    #     return seed_indices, seed_weights
+
+
+    # @torch.no_grad()
+    # def topm_seeds(self):
+
+    #     from entmax import entmax15
+
+    #     s = self.periphery_seedness()
+    #     M = min(self.top_m, s.numel())
+
+    #     seed_indices = torch.topk(
+    #         s,
+    #         k=M,
+    #         largest=True
+    #     ).indices
+
+    #     # clean seedness로 deterministic weight 계산
+    #     alpha_all = entmax15(
+    #         s / 0.3,
+    #         dim=0
+    #     )
+
+    #     seed_weights = alpha_all[seed_indices]
+
+    #     seed_weights = (
+    #         seed_weights /
+    #         seed_weights.sum().clamp_min(1e-8)
+    #     )
+
+    #     return seed_indices, seed_weights
+
+    def topm_seeds_train(self):
+
+        s = self.periphery_seedness()
+
+        # 모든 ROI 사용
+        seed_indices = torch.arange(
+            self.n_rois,
+            device=s.device,
+            dtype=torch.long
+        )
+
+        # 모든 ROI의 importance를 학습
+        seed_weights = F.softmax(
+            s / 0.3,
+            dim=0
+        )
+
+        return seed_indices, seed_weights
+    @torch.no_grad()
+    def topm_seeds(self):
+
+        s = self.periphery_seedness()
+
+        seed_indices = torch.arange(
+            self.n_rois,
+            device=s.device,
+            dtype=torch.long
+        )
+
+        seed_weights = F.softmax(
+            s / 0.3,
+            dim=0
+        )
 
         return seed_indices, seed_weights
 
-    def forward(self, A: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, Any]]:
+    # @torch.no_grad()
+    # def topm_seeds(self):
+    #     from entmax import entmax15
+    #     s = self.periphery_seedness()
+
+    #     alpha_all = entmax15(
+    #         s / 0.3,
+    #         dim=0
+    #     )
+
+    #     M = min(self.top_m, alpha_all.numel())
+
+    #     # Entmax weight가 큰 M개만 사용
+    #     seed_indices = torch.topk(
+    #         alpha_all,
+    #         k=M,
+    #         largest=True
+    #     ).indices
+
+    #     seed_weights = alpha_all[seed_indices]
+
+    #     seed_weights = (
+    #         seed_weights /
+    #         seed_weights.sum().clamp_min(1e-8)
+    #     )
+
+    #     return seed_indices, seed_weights
+
+    # def topm_seeds_train(self):
+    #     from entmax import entmax15
+    #     s = self.periphery_seedness()
+
+    #     alpha_all = entmax15(
+    #         s / 0.3,
+    #         dim=0
+    #     )
+
+    #     M = min(self.top_m, alpha_all.numel())
+
+    #     # Entmax weight가 큰 M개만 사용
+    #     seed_indices = torch.topk(
+    #         alpha_all,
+    #         k=M,
+    #         largest=True
+    #     ).indices
+
+    #     seed_weights = alpha_all[seed_indices]
+
+    #     seed_weights = (
+    #         seed_weights /
+    #         seed_weights.sum().clamp_min(1e-8)
+    #     )
+
+    #     return seed_indices, seed_weights
+
+    def forward(
+        self,
+        A: torch.Tensor,
+        debug: bool = False,
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+
         if self.training:
-            seed_indices, seed_weights = self.topm_seeds_st()
+            seed_indices, seed_weights = self.topm_seeds_train()
         else:
             seed_indices, seed_weights = self.topm_seeds()
 
-        g, aux = self.encoder(A, seed_indices=seed_indices, seed_weights=seed_weights)
-        logits = self.head(g)
+        g, aux = self.encoder(
+            A,
+            seed_indices=seed_indices,
+            seed_weights=seed_weights,
+            debug=debug
+        )
+        logits = self.head(g, debug=debug)
         # also expose seedness vector for logging
-        aux["seedness"] = self.periphery_seedness().detach()
+        seedness = self.periphery_seedness().detach()
+        aux["seedness"] = seedness
         return logits, aux

@@ -270,8 +270,8 @@ def run_all(root_dir, roi_names, roi_map):
         # if not os.path.isdir(exp):
         #     continue
         # specific folder
-        if "w0_hitranet_20260326" not in exp:
-            continue
+        # if "w0_hitranet_20260326" not in exp:
+        #     continue
         aux_files = glob.glob(os.path.join(exp, "fold*_best_aux.pt"))
 
         for aux_path in aux_files:
@@ -286,7 +286,7 @@ def run_all(root_dir, roi_names, roi_map):
 # -------------------------
 if __name__ == "__main__":
 
-    ROOT_DIR = "/data5/sohyunkang/experiments"
+    ROOT_DIR = "./experiments"
     txt_path = "aal_network_labels2.txt"
 
     roi_map = load_roi_network_map(txt_path)

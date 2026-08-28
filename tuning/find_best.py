@@ -5,7 +5,7 @@ import glob
 results = []
 
 # find folders matching pattern
-folders = glob.glob("/data5/sohyunkang/experiments/w*_hitranet_2026*")
+folders = glob.glob("./experiments/*")
 
 for folder in folders:
     json_path = os.path.join(folder, "cv_results.json")
@@ -15,7 +15,8 @@ for folder in folders:
             with open(json_path, "r") as f:
                 data = json.load(f)
             
-            auc = data.get("auc_mean", None)
+            avgs = data.get("mean", None)
+            auc = avgs.get("auc", None)
             
             if auc is not None:
                 results.append((folder, auc))
