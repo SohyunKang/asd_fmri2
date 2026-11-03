@@ -14,7 +14,7 @@ class PeripherySeedness(nn.Module):
         super().__init__()
         self.u_per = nn.Parameter(torch.zeros(n_rois))  # logits
         # randomness added
-        # nn.init.normal_(self.u_per, std=0.1)
+        nn.init.normal_(self.u_per, std=0.1)
 
     def forward(self) -> torch.Tensor:
         # return torch.sigmoid(self.u_per)  # (N,)
@@ -48,7 +48,10 @@ class GraphDeepBlock(nn.Module):
 
         self.use_gated_residual = use_gated_residual
         if use_gated_residual:
-            self.gate = nn.Parameter(torch.zeros(1))  # scalar gate
+            # self.gate = nn.Parameter(torch.zeros(1))  # scalar gate
+            self.gate = nn.Parameter(
+                torch.tensor(-2.0)
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.norm(x)
@@ -88,18 +91,30 @@ class EdgeGatedPropagation(nn.Module):
         k = self.Wk(H_bar)
 
         # FC [-1, 1] -> [0, 2] before logarithmic prior
-        A_pos = A + 1.0
+        # A_pos = A + 1.0
 
         score = torch.bmm(
             q,
             k.transpose(1, 2)
         ) / math.sqrt(self.d_k)
 
-        fc_log = torch.log(A_pos + self.eps)
-        score_fc = score + fc_log
+        # fc_log = torch.log(A_pos + self.eps)
+        # score_fc = score + fc_log
+
+        score_fc = score + A
+
+        # print(
+        #     "[Propagation scale] "
+        #     f"score mean/std={score.mean().item():.4f}/"
+        #     f"{score.std().item():.4f}, "
+        #     f"A mean/std={A.mean().item():.4f}/"
+        #     f"{A.std().item():.4f}, "
+        #     f"A min/max={A.min().item():.4f}/"
+        #     f"{A.max().item():.4f}"
+        # )
 
         # Sharpen row-wise transition distribution
-        P = F.softmax(score_fc / 0.1, dim=-1)
+        P = F.softmax(score_fc, dim=-1)
 
         return P
 
@@ -189,17 +204,33 @@ class SeedHopEncoder(nn.Module):
         return out.reshape(B, M, N)
 
     @staticmethod
-    def _bmm_seed_X(P: torch.Tensor, X: torch.Tensor) -> torch.Tensor:
+    def _bmm_seed_X(
+        P: torch.Tensor,
+        X: torch.Tensor
+    ) -> torch.Tensor:
         """
-        P: (B,N,N)
+        P: (B,N,N), P[i,j] = transition from i to j
         X: (B,M,N,d)
-        returns: (B,M,N,d) where X_new = P @ X (node-dimension)
+
+        p_new = p @ P와 같은 방향으로 node feature를 전파:
+        X_new[j] = sum_i P[i,j] X[i]
+                = P^T @ X
         """
         B, M, N, d = X.shape
-        X2 = X.reshape(B * M, N, d)            # (BM,N,d)
-        P2 = P.unsqueeze(1).expand(B, M, N, N) # (B,M,N,N)
-        P2 = P2.reshape(B * M, N, N)           # (BM,N,N)
-        out = torch.bmm(P2, X2)                # (BM,N,d)
+
+        X2 = X.reshape(B * M, N, d)
+
+        P_t = P.transpose(1, 2)
+
+        P2 = (
+            P_t
+            .unsqueeze(1)
+            .expand(B, M, N, N)
+            .reshape(B * M, N, N)
+        )
+
+        out = torch.bmm(P2, X2)
+
         return out.reshape(B, M, N, d)
 
     def aggregate_seeds(
@@ -403,8 +434,8 @@ class SeedHopEncoder(nn.Module):
             X_deep = self.deep(X_res)
 
             # output normalization
-            # X = self.out_norm(X_deep)
-            X = X_deep
+            X = self.out_norm(X_deep)
+            # X = X_deep
 
             if debug:
                 # subject-wise variability:
@@ -450,10 +481,10 @@ class SeedHopEncoder(nn.Module):
             # ============================================================
 
             # attention 계산은 그대로 유지
-            g_bar_attn, beta, h_seed = self.aggregate_seeds(
-                g_seed,
-                seed_weights
-            )
+            # g_bar_attn, beta, h_seed = self.aggregate_seeds(
+            #     g_seed,
+            #     seed_weights
+            # )
 
             # 실제 classifier에는 원래 alpha-weighted aggregation 사용
             g_bar = torch.einsum(
@@ -462,12 +493,14 @@ class SeedHopEncoder(nn.Module):
                 g_seed
             )
 
+            # g_bar = g_bar_attn
+
             # classifier에서 실제 사용하는 representation
             g_bar_list.append(g_bar)
 
             # analysis / visualization
-            beta_list.append(beta)
-            h_seed_list.append(h_seed)
+            # beta_list.append(beta)
+            # h_seed_list.append(h_seed)
 
         if debug:
             p_ent_str = " -> ".join(f"{v:.4f}" for v in debug_p_entropy)
@@ -519,16 +552,16 @@ class SeedHopEncoder(nn.Module):
             ],
 
             # projected seed-specific trajectory
-            "h_seed_list": [
-                t.detach()
-                for t in h_seed_list
-            ],
+            # "h_seed_list": [
+            #     t.detach()
+            #     for t in h_seed_list
+            # ],
 
             # subject/hop-specific aggregation weight
-            "beta_list": [
-                t.detach()
-                for t in beta_list
-            ],
+            # "beta_list": [
+            #     t.detach()
+            #     for t in beta_list
+            # ],
 
             # final hop-level representation
             "g_bar_list": [
@@ -643,106 +676,191 @@ class HiTraNet(nn.Module):
 
         return idx
 
-    # entmax 버전
     # def topm_seeds_train(self):
-
     #     from entmax import entmax15
 
     #     s = self.periphery_seedness()
     #     M = min(self.top_m, s.numel())
 
-    #     # exploration only for selecting indices
+    #     # Gumbel exploration
     #     U = torch.rand_like(s).clamp_(1e-6, 1.0 - 1e-6)
     #     g = -torch.log(-torch.log(U))
 
-    #     noisy_s = s + 0 * g
+    #     epoch = getattr(self, "current_epoch", 1)
+
+    #     # 초반에는 exploration, 이후 점진적으로 감소
+    #     noise_scale = max(
+    #         0.02,
+    #         0.20 * (1.0 - epoch / 20.0),
+    #     )
+
+    #     noisy_s = s + noise_scale * g
 
     #     seed_indices = torch.topk(
     #         noisy_s,
     #         k=M,
-    #         largest=True
+    #         largest=True,
     #     ).indices
 
-    #     # clean seedness로 deterministic weight 계산
-    #     alpha_all = entmax15(
-    #         s / 0.3,
-    #         dim=0
+    #     # 선택된 seed 내부에서 clean score로 weight 계산
+    #     selected_scores = s[seed_indices]
+
+    #     seed_weights = entmax15(
+    #         selected_scores / 0.3,
+    #         dim=0,
     #     )
 
-    #     seed_weights = alpha_all[seed_indices]
-
     #     seed_weights = (
-    #         seed_weights /
-    #         seed_weights.sum().clamp_min(1e-8)
+    #         seed_weights
+    #         / seed_weights.sum().clamp_min(1e-8)
     #     )
 
     #     return seed_indices, seed_weights
+
+    # entmax 버전
+    def topm_seeds_train(self):
+
+        from entmax import entmax15
+
+        s = self.periphery_seedness()
+        M = min(self.top_m, s.numel())
+
+        # exploration only for selecting indices
+        U = torch.rand_like(s).clamp_(1e-6, 1.0 - 1e-6)
+        g = -torch.log(-torch.log(U))
+
+        # noisy_s = s + 0 * g
+
+        seed_indices = torch.topk(
+            s,
+            k=M,
+            largest=True
+        ).indices
+
+        # clean seedness로 deterministic weight 계산
+        alpha_all = entmax15(
+            s / 1.0,
+            dim=0
+        )
+
+        seed_weights = alpha_all[seed_indices]
+
+        seed_weights = (
+            seed_weights /
+            seed_weights.sum().clamp_min(1e-8)
+        )
+
+        return seed_indices, seed_weights
+
+    @torch.no_grad()
+    def topm_seeds(self):
+
+        from entmax import entmax15
+
+        s = self.periphery_seedness()
+        M = min(self.top_m, s.numel())
+
+        seed_indices = torch.topk(
+            s,
+            k=M,
+            largest=True
+        ).indices
+
+        # clean seedness로 deterministic weight 계산
+        alpha_all = entmax15(
+            s / 1.0,
+            dim=0
+        )
+
+        seed_weights = alpha_all[seed_indices]
+
+        seed_weights = (
+            seed_weights /
+            seed_weights.sum().clamp_min(1e-8)
+        )
+
+        return seed_indices, seed_weights
+
+    # def _deterministic_topm_seeds(self):
+    #     from entmax import entmax15
+
+    #     # learnable global seed score: (N,)
+    #     s = self.periphery_seedness()
+
+    #     M = min(
+    #         self.top_m,
+    #         s.numel(),
+    #     )
+
+    #     # seed score가 높은 M개 ROI를 deterministic하게 선택
+    #     seed_indices = torch.topk(
+    #         s,
+    #         k=M,
+    #         largest=True,
+    #         sorted=True,
+    #     ).indices
+
+    #     # 선택된 seed의 score만 사용하여 weight 계산
+    #     selected_scores = s[seed_indices]
+
+    #     seed_weights = entmax15(
+    #         selected_scores / 0.3,
+    #         dim=0,
+    #     )
+
+    #     # numerical safety
+    #     seed_weights = (
+    #         seed_weights
+    #         / seed_weights.sum().clamp_min(1e-8)
+    #     )
+
+    #     return seed_indices, seed_weights
+
+
+    # def topm_seeds_train(self):
+    #     return self._deterministic_topm_seeds()
 
 
     # @torch.no_grad()
     # def topm_seeds(self):
+    #     return self._deterministic_topm_seeds()
 
-    #     from entmax import entmax15
+    # def topm_seeds_train(self):
 
     #     s = self.periphery_seedness()
-    #     M = min(self.top_m, s.numel())
 
-    #     seed_indices = torch.topk(
-    #         s,
-    #         k=M,
-    #         largest=True
-    #     ).indices
-
-    #     # clean seedness로 deterministic weight 계산
-    #     alpha_all = entmax15(
-    #         s / 0.3,
-    #         dim=0
+    #     # 모든 ROI 사용
+    #     seed_indices = torch.arange(
+    #         self.n_rois,
+    #         device=s.device,
+    #         dtype=torch.long
     #     )
 
-    #     seed_weights = alpha_all[seed_indices]
-
-    #     seed_weights = (
-    #         seed_weights /
-    #         seed_weights.sum().clamp_min(1e-8)
+    #     # 모든 ROI의 importance를 학습
+    #     seed_weights = F.softmax(
+    #         s / 1.0,
+    #         dim=0
     #     )
 
     #     return seed_indices, seed_weights
 
-    def topm_seeds_train(self):
+    # @torch.no_grad()
+    # def topm_seeds(self):
 
-        s = self.periphery_seedness()
+    #     s = self.periphery_seedness()
 
-        # 모든 ROI 사용
-        seed_indices = torch.arange(
-            self.n_rois,
-            device=s.device,
-            dtype=torch.long
-        )
+    #     seed_indices = torch.arange(
+    #         self.n_rois,
+    #         device=s.device,
+    #         dtype=torch.long
+    #     )
 
-        # 모든 ROI의 importance를 학습
-        seed_weights = F.softmax(
-            s / 0.3,
-            dim=0
-        )
+    #     seed_weights = F.softmax(
+    #         s / 1.0,
+    #         dim=0
+    #     )
 
-        return seed_indices, seed_weights
-    @torch.no_grad()
-    def topm_seeds(self):
-
-        s = self.periphery_seedness()
-
-        seed_indices = torch.arange(
-            self.n_rois,
-            device=s.device,
-            dtype=torch.long
-        )
-
-        seed_weights = F.softmax(
-            s / 0.3,
-            dim=0
-        )
-
-        return seed_indices, seed_weights
+    #     return seed_indices, seed_weights
 
     # @torch.no_grad()
     # def topm_seeds(self):
@@ -821,3 +939,4 @@ class HiTraNet(nn.Module):
         seedness = self.periphery_seedness().detach()
         aux["seedness"] = seedness
         return logits, aux
+

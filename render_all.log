@@ -1,0 +1,228 @@
+nohup: ignoring input
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold5_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold2_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold1_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold4_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260912_031727_206943/fold3_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold5_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold2_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold1_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold4_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_111948_522353/fold3_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold5_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold2_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold1_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold4_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_102624_883509/fold3_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold5_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold2_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold1_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold4_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260917_234126_262092/fold3_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold5_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold2_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold1_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold4_best_aux.pt
+========================================
+[RUN] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_best_aux.pt
+Saved MP4: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_trajectory_all.mp4
+Saved PNG : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_trajectory_all.png
+Saved trajectory NPZ: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_trajectory_all.npz
+Saved region CSV   : /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_hop_region_importance_all.csv
+Saved presentation video: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_trajectory_all.mp4
+Saved presentation still: /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_trajectory_all.png
+[DONE] /data5/sohyunkang/experiments2/w0_hitranet_20260915_153331_517071/fold3_best_aux.pt
+========================================
+All rendering jobs finished.

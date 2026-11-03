@@ -12,28 +12,27 @@ env["PYTHONUTF8"] = "1"
 # ============================================================
 
 PYTHON = "python"
-MAIN = "main.py"
+MAIN = "main3.py"
 
-# # 처음에는 너무 크게 돌리지 말 것
-# SEARCH_SPACE = {
-#     "d_model": [64, 96, 128],
-#     "n_hops": [4, 6],
-#     "top_m": [5, 8, 10],
-#     "depth": [2, 3],
-#     "dropout": [0.1, 0.2],
-#     "lr": [5e-5, 1e-4, 3e-4, 1e-3],
-#     "seed_lr": [1e-4, 3e-4, 1e-3],
-#     "weight_decay": [1e-4],
-#     "batch_size": [8, 16, 32]
-# }
+# 처음에는 너무 크게 돌리지 말 것
 SEARCH_SPACE = {
-    "random_seed": [0,10,20,30,40],
+    "d_model": [64, 128],
+    "mlp_hidden": [64, 128],
+    "n_hops": [3, 4, 5],
+    "depth": [2, 3, 4],
+    "lr": [1e-4, 3e-4],
+    "seed_lr": [1e-4, 3e-4],
+    "batch_size": [8, 32, 64],
 }
+
+# SEARCH_SPACE = {
+#     "random_seed": [0,5,15,20,25,30,35,40],
+# }
 
 # main.py에서 사용하는 고정 옵션
 FIXED_ARGS = {
-    "epochs": 50,
-    "n_splits": 5,
+    "epochs": 30,
+    "random_seed": 25,
 }
 
 

@@ -409,8 +409,8 @@ def fc_stats(dataset, indices):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", type=str, default="data/abide_subjects_fc_with_demo_260202.xlsx")
-    parser.add_argument("--aal_txt", type=str, default="data/ROI_MNI_V4.txt")
+    parser.add_argument("--csv", type=str, default="./data/abide_subjects_fc_with_demo_260202.xlsx")
+    parser.add_argument("--aal_txt", type=str, default="./data/ROI_MNI_V4.txt")
 
     parser.add_argument("--n_rois", type=int, default=116)
     parser.add_argument("--n_classes", type=int, default=2)
