@@ -2,9 +2,9 @@
 
 **Hierarchical Trajectory Representation Learning from Resting-State Functional Connectivity for Autism Spectrum Disorder**
 
-> **Project status:** Research code accompanying an **unpublished manuscript draft**. The manuscript is a scientific description in progress, not a finalized or peer-reviewed specification. This README documents the behavior of the **currently supplied code** (`main3.py`, `model.py`, `dataset.py`, `utils.py`, and `model2.py`) and explicitly identifies differences between the manuscript draft and the implementation.
->
-> **Clinical-use disclaimer:** This is a research prototype for studying autism spectrum disorder (ASD)-related functional connectivity. It is **not** a validated medical device, a clinical diagnostic test, or a substitute for clinical assessment.
+HiTraNet is a PyTorch-based research framework for autism spectrum disorder (ASD) classification and analysis of hierarchical latent representations derived from resting-state functional connectivity (rsFC). This README explains the data format, model architecture, training pipeline, saved artifacts, and analysis workflow used by `main3.py` and `model.py`.
+
+> **Research use:** Predictions and propagation visualizations are intended for research analysis, not clinical diagnosis.
 
 ## Contents
 
@@ -30,46 +30,48 @@
 
 ## 1. Project overview
 
-**HiTraNet (Hierarchical Trajectory Network)** is a graph-based deep learning framework developed to examine **hierarchical changes in latent representations of resting-state functional connectivity (rsFC)** and to classify **ASD versus typically developing (TD) controls**.
+**HiTraNet (Hierarchical Trajectory Network)** learns subject-specific, multi-hop latent representations from resting-state functional connectivity (rsFC) to classify **autism spectrum disorder (ASD)** versus **typically developing (TD)** controls.
 
-Unlike approaches that flatten a functional connectivity matrix and perform classification directly, HiTraNet represents each participant's brain as a weighted graph and constructs **seed-specific trajectories over successive graph propagation hops**. The central objects are:
+Each subject is represented as a weighted graph whose nodes correspond to brain regions of interest (ROIs) and whose edge weights encode functional connectivity. The model selects informative seed ROIs and tracks both latent node states and seed influence distributions through successive propagation hops. Hop-wise representations are aggregated into a subject embedding for classification and later interpretation.
 
-- **Learned seed regions:** a small, globally shared set of informative brain regions selected through trainable ROI-level scores.
-- **Hop-dependent propagation operators:** participant- and hop-specific transition matrices estimated from latent node states and informed by individual FC matrices.
-- **Seed influence fields:** explicit distributions recording where information originating at each selected seed is propagated.
-- **Seed-conditioned node states:** latent representations updated recursively through graph propagation and shared transformations.
-- **Hierarchical latent trajectories:** one representation per selected seed and hop, which can be inspected for ASD-related differences.
-- **ASD classification:** an MLP that integrates weighted seed summaries from all hops.
+The framework contains six key components:
 
-The research objective is twofold: **predict diagnostic group from rsFC** and **provide a structured, model-derived account of how seed-originated representations change across graph propagation depths**.
+1. **Learnable seed selection:** top-$M$ ROI origins selected by globally learned seed scores.
+2. **Seed-conditioned initialization:** separate node-state channels initialized using each subject's FC and a trainable seed token.
+3. **Hop-dependent propagation:** an FC-informed transition operator generated from evolving node states.
+4. **Seed influence tracking:** propagation distributions from each seed to destination ROIs.
+5. **Hierarchical trajectory readout:** seed- and hop-specific pooled latent vectors.
+6. **Prediction head:** classification from the concatenation of aggregated hop representations.
 
-**Interpretation boundary:** A sequence of *model propagation hops* is not longitudinal time, a measured neuronal signal trajectory, or direct evidence that activity physically travels along a particular sensory-to-transmodal route. Such biological interpretations require additional analysis and validation.
-
-### Principal inputs and outputs
+### Inputs and outputs
 
 | Component | Input | Output |
 |---|---|---|
-| Data loader | Excel file containing 6,670 upper-triangle FC features per subject, labels, and metadata | Symmetric `116 × 116` FC tensor and metadata |
-| Seed selection | Learned global ROI-level scores | `M` selected ROI indices and normalized weights |
-| Propagation encoder | FC matrix, seed indices, seed weights | Hop-wise node states, influence fields, and trajectories |
-| Prediction head | Concatenated weighted hop representations | Binary classification logits |
-| Training script | Dataset, parameters, site-aware CV settings | Fold checkpoints, metric files, split manifest, auxiliary interpretation tensors |
+| `FCDataset` | Excel table with 6,670 FC correlations per subject and phenotypic metadata | Symmetric FC matrices `(B,116,116)`, labels, subject/site fields |
+| Seed selector | Trainable ROI scores | Selected ROI indices and normalized weights |
+| Encoder | FC, seeds, weights | Hop-specific transition operators, influence fields and node states |
+| Trajectory readout | Seed influence fields and states | Seed-specific features `(B,K,M,d)` |
+| Classifier | Weighted representation concatenated across hops | ASD/TD logits `(B,2)` |
+| Training driver | Dataset, CV settings and hyperparameters | Fold metrics, checkpoints, split manifest, latent tensors |
+
+Here, **hop** denotes a step in the model's graph-based representation propagation; it is not a longitudinal time point.
 
 ---
 
 ## 2. Scientific motivation
 
-Autism spectrum disorder is associated with heterogeneous patterns of brain functional connectivity. Functional systems are organized across multiple spatial and functional scales, including sensory, association, and transmodal systems. The manuscript draft motivates HiTraNet by asking whether a predictive model can move beyond identifying **which ROI or edge is important** and instead characterize **how a participant-specific representation evolves across successive levels of graph-based integration**.
+ASD has heterogeneous effects on functional brain organization. The brain's macroscale functional hierarchy is commonly described as a progression from **sensory/unimodal systems**, through **association systems**, toward **transmodal systems** involved in higher-order integration. Functional connectivity (FC) derived from resting-state fMRI provides a network representation with which to investigate such organization.
 
-The proposed approach responds to three limitations of common FC-based classifiers:
+Conventional classifiers often summarize an rsFC matrix using global features or identify discriminative regions and connections. HiTraNet additionally models how representations **originating from selected ROIs are redistributed and integrated over multiple graph propagation depths**. The resulting sequence of latent vectors constitutes a *hierarchical trajectory* in a shared feature space.
 
-1. **Vectorized FC models** can learn discriminative correlations but do not explicitly preserve an ROI-to-ROI propagation process.
-2. **Conventional graph classifiers** may propagate information across a network yet often summarize their explanations as static node/edge importance.
-3. **Static explanations** generally do not represent the sequence of seed-originated changes across several propagation depths.
+Two complementary objects make this analysis possible:
 
-HiTraNet therefore maintains **both** an evolving node-state tensor and an explicit seed influence distribution at each hop. It then summarizes them jointly into a representation that can be used for classification and exploratory visualization.
+- **Seed-conditioned node states** represent the evolving information at each ROI.
+- **Seed influence fields** track the model-assigned distribution of influence from an originating seed to destination ROIs.
 
-The manuscript draft is the **scientific motivation and terminology source** for this repository. The equations in Section 8 below describe what the supplied code actually computes, including cases where this differs from draft equations.
+Their influence-weighted readout produces a trajectory for each seed. The same hop representations are integrated for ASD/TD prediction, thereby connecting predictive features with the model's hierarchical propagation process.
+
+The sensory → association → transmodal hierarchy is the **scientific context used to interpret** the learned trajectories. Functional-network assignments and biological interpretations are assessed through downstream analysis rather than imposed as fixed labels in the classifier.
 
 ---
 
@@ -78,7 +80,7 @@ The manuscript draft is the **scientific motivation and terminology source** for
 ```text
 ABIDE-I preprocessed rs-fMRI regional time series
              |
-             |  external preprocessing / QC (not included here)
+             |  rs-fMRI preprocessing and quality control
              v
 AAL atlas (116 ROIs) + Pearson correlation
              |
@@ -117,48 +119,40 @@ Class-weighted CE training and validation-AUC selection
 Fold test evaluation + saved checkpoints + seed trajectories
 ```
 
-**Important:** The current training script starts with an **already constructed FC Excel file**. It does **not** itself download ABIDE, preprocess fMRI scans, extract ROI time series, calculate correlations, or produce the paper's figures.
+**Training input:** `main3.py` starts from the prepared FC Excel file. rs-fMRI preprocessing and FC construction are upstream data preparation steps.
 
 ---
 
 ## 4. Repository structure
 
-The files examined for this README are:
-
 ```text
 HiTraNet/
-├── README.md                   # this document
-├── main3.py                    # training, site-aware CV, evaluation, export
-├── model.py                    # CURRENT HiTraNet architecture used by main3.py
-├── model2.py                   # older/alternative HiTraNet implementation
-├── dataset.py                  # Excel FC loader and symmetric reconstruction
-├── utils.py                    # seeds, FC normalization helper, meters, ROI names
-│
-├── data/                       # REQUIRED but not included in the upload
+├── README.md
+├── main3.py                     # Main experiment entry point
+├── model.py                     # HiTraNet architecture used by main3.py
+├── model2.py                    # Additional model architecture
+├── dataset.py                   # FC Excel loader and matrix reconstruction
+├── utils.py                     # Utilities for seeds, metrics, FC and ROI names
+├── data/
 │   ├── abide_subjects_fc_with_demo_260202.xlsx
 │   └── ROI_MNI_V4.txt
-│
-├── visualization/              # REFERENCED but not included in the upload
-│   ├── __init__.py
-│   └── viz_umap.py             # imported by main3.py
-│
-└── experiments/                # recommended portable output location
-    └── ...
+└── visualization/
+    ├── __init__.py
+    └── viz_umap.py              # Module imported by main3.py
 ```
 
-### Responsibilities of the supplied modules
+### Module responsibilities
 
-| File | Role | Entry points / main classes |
+| File | Role | Main functions/classes |
 |---|---|---|
-| `main3.py` | Full experiment driver | `main`, `train_one_epoch`, `eval_one_epoch`, `build_site_aware_cv_splits` |
-| `model.py` | **Active** HiTraNet implementation | `HiTraNet`, `PeripherySeedness`, `SeedHopEncoder`, `EdgeGatedPropagation`, `GraphDeepBlock`, `MLPHead` |
-| `dataset.py` | FC reconstruction from spreadsheet | `FCDataset` |
-| `utils.py` | Shared utilities | `set_seed`, `normalize_fc`, `accuracy_from_logits`, `AverageMeter`, `load_roi_names_from_txt` |
-| `model2.py` | **Legacy/alternative**, not invoked by `main3.py` | `HierarchicalTrajectoryEncoder`, `HierarchicalTrajectoryEncoderDeep`, `TransmodalArrival`, a different `HiTraNet` |
+| `main3.py` | Site-aware splitting, model training, validation, fold evaluation, export | `main`, `train_one_epoch`, `eval_one_epoch`, `build_site_aware_cv_splits` |
+| `model.py` | HiTraNet used by `main3.py` | `HiTraNet`, `PeripherySeedness`, `SeedHopEncoder`, `EdgeGatedPropagation`, `GraphDeepBlock`, `MLPHead` |
+| `dataset.py` | Reading subject-wise FC features and metadata | `FCDataset` |
+| `utils.py` | Random seed control, FC normalization helper, meters, ROI-name loading | `set_seed`, `normalize_fc`, `accuracy_from_logits`, `AverageMeter`, `load_roi_names_from_txt` |
+| `model2.py` | Additional trajectory encoder and transmodal-arrival architecture | `HierarchicalTrajectoryEncoderDeep`, `TransmodalArrival` |
+| `visualization/viz_umap.py` | Functions referenced by the entry script for trajectory visualization | `extract_seed_step_graphrepr`, `save_umap_seed_trajectories` |
 
-**Do not swap `model.py` and `model2.py` by filename alone.** Their constructors, forward passes, auxiliary outputs, and seed mechanisms differ. The `main3.py` import is specifically `from model import HiTraNet`.
-
-The `visualization/viz_umap.py` import is **unconditional** in `main3.py` even though its experiment-loop visualization calls are commented out. This missing file can cause startup to fail; see [Installation](#5-installation-and-dependencies) and [Troubleshooting](#21-troubleshooting).
+The training entry point imports `HiTraNet` with `from model import HiTraNet`. The data files and `visualization` package are expected to be available at the paths shown above. The experiment output path is specified in Section 5.3.
 
 ---
 
@@ -166,32 +160,28 @@ The `visualization/viz_umap.py` import is **unconditional** in `main3.py` even t
 
 ### 5.1 Requirements
 
-Recommended environment:
+Use Python **3.9+** (`argparse.BooleanOptionalAction` is used) and install a PyTorch build compatible with the machine's CPU or CUDA environment. The main Python dependencies are:
 
-- Python **3.9 or later**, because the CLI uses `argparse.BooleanOptionalAction`; a current Python 3.10/3.11 environment is a reasonable choice.
-- PyTorch installed for the machine's CPU/CUDA platform.
-- `numpy`, `pandas`, `openpyxl`, `scikit-learn`, `matplotlib`, and **`entmax`**.
-- Additional packages may be required by the external `visualization` module if it is restored.
+- `torch`
+- `numpy`, `pandas`, `openpyxl`
+- `scikit-learn`, `matplotlib`
+- `entmax`
 
-A simple environment setup:
+Example setup:
 
 ```bash
 conda create -n hitranet python=3.11 -y
 conda activate hitranet
 
-# Install the appropriate PyTorch build for your platform first.
-# Example: use the installation command from https://pytorch.org/get-started/locally/
-
+# Install PyTorch for your CUDA/CPU platform (https://pytorch.org/get-started/locally/).
 python -m pip install numpy pandas openpyxl scikit-learn matplotlib entmax
 ```
 
-`torch` is an additional required dependency; the command above intentionally does **not** assume the correct CUDA wheel for your GPU. A CPU-only environment is sufficient for debugging and smoke tests, although training may be significantly slower.
+Install any dependencies used by the repository's `visualization/viz_umap.py` module as well. A GPU is useful for full experiments; a CPU is sufficient for small model tests.
 
-For a fully reproducible release, replace these unpinned packages with a tested `environment.yml` or a locked dependency file, and save `python --version`, `pip freeze`, the CUDA toolkit version, and the GPU model with each experiment.
+### 5.2 Visualization module
 
-### 5.2 Missing visualization dependency
-
-The first lines of `main3.py` include:
+`main3.py` imports the following functions on startup:
 
 ```python
 from visualization.viz_umap import (
@@ -200,32 +190,31 @@ from visualization.viz_umap import (
 )
 ```
 
-The `visualization/` package was **not** among the provided files. Two supported approaches:
+Place the corresponding `visualization/viz_umap.py` module in the repository before running `main3.py`. The main training loop saves site-distribution plots by default; the UMAP routines are separate analysis utilities.
 
-1. **Restore** the original `visualization/viz_umap.py` package and its dependencies, **or**
-2. If only training is required, **comment out the import** above. The corresponding UMAP calls in the supplied training loop are already commented out.
+For a training-only checkout that does not include the visualization module, remove or comment out the import above. The UMAP function calls inside the epoch loop are already commented out.
 
-Passing `--no-vis` is **not enough** to bypass an import error, because imports happen before argument parsing.
+### 5.3 Experiment output directory
 
-### 5.3 Output-directory portability
+By default, `main3.py` saves experiments under:
 
-The current `main3.py` constructs `exp_dir` from a **hard-coded absolute `/data5/.../experiments2/` path**. On another workstation this directory may be absent or inaccessible. Edit the path before running or, preferably, replace its construction with:
+```text
+/data5/sohyunkang/experiments2/w<worker_id>_hitranet_<timestamp>/
+```
+
+This path is defined by the following line in `main3.py`:
 
 ```python
-output_root = os.environ.get("HITRANET_OUTPUT_DIR", "./experiments")
-exp_dir = os.path.join(
-    output_root,
-    f"w{args.worker_id}_hitranet_{timestamp}",
-)
+exp_dir = f"/data5/sohyunkang/experiments2/w{args.worker_id}_hitranet_{timestamp}"
 ```
 
-Then choose an output directory with:
+Configure the directory for the destination server before running the first experiment. For example, replace the parent path with an accessible location while retaining the experiment-specific suffix:
 
-```bash
-export HITRANET_OUTPUT_DIR="$PWD/experiments"
+```python
+exp_dir = f"./experiments/w{args.worker_id}_hitranet_{timestamp}"
 ```
 
-> This is a **recommended edit**, not a feature already present in the supplied code. Currently there is **no** `--output_dir` CLI argument.
+The script automatically creates `exp_dir` with `os.makedirs(exp_dir, exist_ok=True)`.
 
 ### 5.4 Basic checks
 
@@ -237,48 +226,38 @@ python -c "import torch, pandas, sklearn, matplotlib, entmax; print('Imports OK'
 python main3.py --help
 ```
 
-The last command requires that the unconditional visualization import has been resolved.
+The `--help` check also imports `visualization.viz_umap`, so keep that module accessible.
 
 ---
 
 ## 6. Dataset and preprocessing
 
-### 6.1 Source dataset
+### 6.1 Dataset source
 
-The manuscript draft describes an experiment on **ABIDE-I (Autism Brain Imaging Data Exchange I)**. Its stated analysis cohort consists of:
+HiTraNet is designed for the **ABIDE-I (Autism Brain Imaging Data Exchange I)** resting-state fMRI dataset. The input to the experiment driver is a **subject-wise Excel workbook** of functional connectivity (FC) features and subject metadata. The number of subjects and their ASD/TD proportions are determined by the rows in the workbook supplied through `--csv`.
 
-| Group | Participants in manuscript draft |
-|---|---:|
-| ASD | 374 |
-| TD | 442 |
-| **Total** | **816** |
+The classifier uses the reconstructed FC matrices. Diagnosis labels (`DX_GROUP`) supply the learning targets; acquisition sites (`SITE_ID`) define the site-aware cross-validation partitions. The additional subject metadata support dataset inspection and result identification.
 
-These counts are **reported in the manuscript draft**, not computed or independently checked by the supplied training code. The actual Excel input must be inspected to confirm the cohort used for any particular run.
+### 6.2 Functional connectivity construction
 
-Subject-level covariates may include age at scan, biological sex coding, motion estimates, acquisition site, and other ABIDE phenotypic measures. The current classifier consumes **FC only**; demographic variables are loaded for partitioning, diagnostics, or identification, not concatenated to model features.
+Resting-state FC represents correlations between regional fMRI time series. For a **116-ROI AAL parcellation**, a subject's Pearson correlation matrix has shape `(116,116)` and contains **6,670 unique ROI pairs** excluding self-connections.
 
-### 6.2 fMRI processing described in the draft
+The data preparation process used to create the input Excel workbook is:
 
-The following describes the manuscript's upstream data construction, **not executable steps implemented in the five uploaded Python files**:
+1. Obtain regional resting-state fMRI time series for the AAL ROIs using the chosen ABIDE-I preprocessing derivatives.
+2. Compute pairwise Pearson correlation coefficients between ROI time series.
+3. Store the strict upper-triangle FC values in columns named `ROI1_ROI2`, `ROI1_ROI3`, ..., `ROI115_ROI116`.
+4. Add the subject identifier, diagnosis label, acquisition-site information, and required phenotypic metadata.
 
-1. Obtain rs-fMRI regional time-series derivatives from the **ABIDE Preprocessed** release (FCP-INDI).
-2. Use **C-PAC** derivatives under the `filt_global` strategy, as stated in the draft.
-3. Extract regional time series using the **Automated Anatomical Labeling (AAL)** atlas with **116 ROIs**.
-4. Retain subjects with complete ROI coverage; exclude subjects with near-zero-variance ROI time series to avoid undefined correlations.
-5. Compute the pairwise **Pearson correlation coefficient** between regional time series.
-6. Form a symmetric **`116 × 116`** FC matrix for each participant.
-7. Store its strict upper triangle (without the diagonal), giving `116 × 115 / 2 = 6,670` connections.
-8. Merge participant records with diagnosis and site identifiers and other available phenotypic metadata.
+The executable experiment begins at this prepared workbook. The loader reconstructs a symmetric FC matrix for every subject.
 
-The draft also discusses a mean-framewise-displacement criterion involving **0.2 mm**. Because the raw preprocessing/download scripts and the actual cohort spreadsheet were not provided, **verify the applied motion filtering and QC before describing the criterion as reproduced by this repository**.
+### 6.3 FC representation in the model
 
-### 6.3 Signed functional connectivity
+For each subject, the matrix $A\in\mathbb{R}^{N\times N}$ contains signed FC values. `FCDataset` reconstructs the full symmetric matrix, preserves positive and negative correlations, and sets the diagonal entries to zero. The reconstructed FC matrix is passed to HiTraNet directly.
 
-Pearson correlations can take positive or negative values. `FCDataset` reconstructs the symmetric FC matrix **without discarding negative correlations, thresholding, or imposing binary graph edges**. The diagonal is set to zero. At present, the active model receives the resulting **signed, unnormalized FC values**; Section 18 details the implications for the propagation operator.
+### 6.4 Dataset-level processing
 
-### 6.4 Preventing information leakage during FC construction
-
-Pearson correlations for a subject are computed entirely from that subject's time series. If adding any **data-driven, cross-subject** transforms (feature selection, site harmonization, learned scaling, imputation, ComBat, normalization fitted across participants), fit them **inside each training partition only** and apply the fitted transform to validation/test subjects.
+If an experiment introduces transformations estimated across participants, such as harmonization or data-driven scaling, estimate their parameters on each training partition and apply them to its validation and test partitions. The training script uses the prepared FC entries from the input workbook.
 
 ---
 
@@ -294,7 +273,7 @@ Default value:
 data/abide_subjects_fc_with_demo_260202.xlsx
 ```
 
-The active call constructs the dataset with:
+The experiment driver constructs the dataset with:
 
 ```python
 FCDataset(
@@ -304,7 +283,7 @@ FCDataset(
 )
 ```
 
-Thus, although `FCDataset` defaults to `label_col='label'` when called independently, **`main3.py` requires `DX_GROUP`**.
+For experiments launched through `main3.py`, the label column is `DX_GROUP`.
 
 ### 7.2 Required columns
 
@@ -314,8 +293,8 @@ Thus, although `FCDataset` defaults to `label_col='label'` when called independe
 | `Subject` | Unique participant ID | Subject identifier saved with results |
 | `AGE_AT_SCAN` | Numeric age at scan | Split-distribution summary |
 | `SEX` | Dataset's encoded sex value | Split-distribution summary |
-| `func_mean_fd` | Numeric mean framewise displacement | Read by loader; currently **not returned** to `main3.py` |
-| `Site` | Acquisition-site description | Returned by loader; not used for stratification |
+| `func_mean_fd` | Numeric mean framewise displacement | Read from the workbook by the dataset loader |
+| `Site` | Acquisition-site description | Subject metadata |
 | `SITE_ID` | Acquisition-site code | **Required** site-aware partitioning |
 | `ROI1_ROI2`, `ROI1_ROI3`, ... | Pearson FC between the indicated ROIs | Reconstruct `N × N` FC |
 
@@ -378,7 +357,7 @@ data/ROI_MNI_V4.txt
 ...
 ```
 
-The main script asserts that exactly `--n_rois` names were loaded. This file is needed even for a training-only run in the current implementation. The ROI-name ordering must match the indices used for FC construction; the script checks **length only**, not semantic consistency.
+`main3.py` reads the ROI-name file at startup and checks that it contains exactly `--n_rois` names. Keep ROI ordering consistent with the FC features.
 
 ### 7.5 Recommended preflight data audit
 
@@ -424,7 +403,7 @@ This preflight assumes one row per unique subject. If a future dataset includes 
 
 ## 8. Model architecture
 
-**This section is derived from the active `model.py` execution path.** Let:
+The HiTraNet forward pass in `model.py` uses the following dimensions:
 
 - `B`: minibatch size;
 - `N`: number of ROIs (default **116**);
@@ -433,88 +412,81 @@ This preflight assumes one row per unique subject. If a future dataset includes 
 - `d`: latent dimension (default **128**);
 - `C`: output classes (default **2**).
 
-A participant has signed FC matrix $A\in\mathbb{R}^{N\times N}$. In practice, `main3.py` sends the matrix reconstructed by `FCDataset` **directly to the model**.
+Each participant is represented by a signed FC matrix $A\in\mathbb{R}^{N\times N}$. The model receives this matrix from `FCDataset`.
 
 ### 8.1 Learned global seed selection — `PeripherySeedness`
 
-A trainable score vector $u\in\mathbb{R}^{N}$ is initialized from a normal distribution with standard deviation `0.1`:
+A global trainable seed score $u_i$ is maintained for each ROI and initialized as:
 
 $$
- u_i \sim \mathcal{N}(0,\,0.1^2).
+u_i\sim\mathcal{N}(0,0.1^2),\qquad u\in\mathbb{R}^{N}.
 $$
 
-**Actual implementation:** `PeripherySeedness.forward()` returns the raw scores $u$, **not** `sigmoid(u)`.
-
-The selected seed set is the deterministic top-$M$ set:
+The seed module returns the score vector $u$. The **$M$ ROIs with the highest scores** are selected as seeds:
 
 $$
-\mathcal S=\operatorname{TopM}(u).
+\mathcal{S}=\mathrm{TopM}(u).
 $$
 
-Seed weights are obtained by applying **1.5-entmax to all ROI scores**, selecting the chosen entries, and renormalizing:
+Importance weights are computed by applying **1.5-entmax** to all ROI scores and renormalizing the weights of the selected seeds:
 
 $$
- a=\operatorname{entmax}_{1.5}(u), \qquad
- \alpha_s=\frac{a_s}{\sum_{j\in\mathcal S}a_j},\quad s\in\mathcal S.
+a=\mathrm{entmax}_{1.5}(u),\qquad
+\alpha_s=\frac{a_s}{\sum_{j\in\mathcal{S}}a_j},\quad s\in\mathcal{S}.
 $$
 
-The weights are nonnegative and sum to one across the selected seeds. Entmax is a sparse alternative to softmax. The seeds and their importance weights are **global model parameters**, shared across subjects, whereas the FC-dependent representations and operators are **subject-specific**.
+The selected seed weights are nonnegative and sum to one. Seed scores, indices, and weights are shared globally across participants for a trained model. The subsequent FC-dependent node states and propagation operators are subject-specific.
 
-**Optimization detail:** indices are selected by a discrete `torch.topk`; gradients do not flow through the ranking operation itself. Gradients can flow through **selected entmax weights**. There is currently no auxiliary loss directly supervising seed scores.
-
-Although `topm_seeds_train()` generates Gumbel noise internally, its noisy ranking is **not used** in the active code; training and evaluation both select the deterministic top-M scores.
+The selector uses `torch.topk` ranking in both training and evaluation. Gradients propagate through the selected entmax weights; selected integer indices define the seed channels.
 
 ### 8.2 Seed-conditioned initialization — `SeedHopEncoder`
 
-First, each ROI's full FC row (its connectivity profile) is projected into $d$ dimensions:
+Each ROI's FC connectivity profile (one row of $A$) is projected to a $d$-dimensional latent vector:
 
 $$
-F_i = W_{\mathrm{FC}} A_{i,:}+b_{\mathrm{FC}},
-\quad F\in\mathbb{R}^{N\times d}.
+F_i=W_{\mathrm{FC}}A_{i,:}+b_{\mathrm{FC}},\qquad F\in\mathbb{R}^{N\times d}.
 $$
 
-For each selected seed $s$, initialize a separate node-state matrix:
+For every selected seed $s$, a seed-conditioned node-state matrix is initialized from these features and a shared trainable seed token $t$:
 
 $$
-X_{s,i}^{(0)}=F_i+\mathbb{1}[i=s]\,t,
+X_{s,i}^{(0)}=F_i+\mathbb{1}[i=s]t,
+\qquad t\in\mathbb{R}^{d}.
 $$
 
-where $t\in\mathbb{R}^{d}$ is a shared trainable **seed token** (normally initialized with `std=--seed_std`). Hence all seed channels begin with the participant's connectivity-profile features, but each receives its seed token at a different originating node.
+The token is added at the selected ROI within that seed's channel and initialized using `--seed_std` (default `0.5`). Each channel therefore combines the subject's FC-derived latent features with the location of its seed.
 
-The influence distribution starts as a one-hot vector:
+The corresponding seed influence distribution is initialized as a one-hot row vector:
 
 $$
 p_{s,i}^{(0)}=\mathbb{1}[i=s].
 $$
 
-The code also creates a trainable `id_embed` lookup but does **not use it** in the current forward computation (`deg_feat = fc_feat`). Do not describe node identity embeddings as an active input to the current classifier.
-
 ### 8.3 Shared, FC-informed hop-dependent operator — `EdgeGatedPropagation`
 
-At each hop $k$, compute the seed-weighted latent node context:
+At hop $k$, seed-conditioned node states are combined with their globally learned seed weights:
 
 $$
-\bar H^{(k-1)}=\sum_{s\in\mathcal S}\alpha_s X_s^{(k-1)}
+\bar H^{(k-1)}=\sum_{s\in\mathcal{S}}\alpha_sX_s^{(k-1)}
 \in\mathbb{R}^{N\times d}.
 $$
 
-Learn attention-style queries and keys:
+Learnable query and key projections are applied:
 
 $$
 Q^{(k)}=\bar H^{(k-1)}W_q,\qquad
 K^{(k)}=\bar H^{(k-1)}W_k.
 $$
 
-The **implemented** propagation operator is:
+The FC-informed propagation operator is:
 
 $$
-P^{(k)}=\operatorname{RowSoftmax}
-\left(\frac{Q^{(k)}(K^{(k)})^\top}{\sqrt{d_k}} + A\right).
+P^{(k)}=\mathrm{RowSoftmax}\left(
+\frac{Q^{(k)}(K^{(k)})^{\top}}{\sqrt{d_k}}+A
+\right).
 $$
 
-`P^(k)` is nonnegative and each row sums to 1. It depends on the individual FC matrix and on **states that have changed across hops**, so it is both subject-specific and hop-dependent.
-
-**Important topology caveat:** The actual operator uses **`score + A`**. It does **not** apply an FC-edge binary mask, does **not** use `log(A)` or elementwise multiplication with a log-scaled adjacency, and does **not** prohibit propagation over zero-valued FC entries. Thus, this release is most accurately described as **FC-informed dense learned propagation**, not strictly edge-masked message passing. Negative FC values lower a logit's contribution relative to positive entries, but they are not removed.
+`P^(k)` is a **dense, row-stochastic transition matrix** with shape `(B,N,N)`. It is determined by both the subject's FC values and hop-specific node states. Signed FC values contribute to the pre-softmax scores, allowing positive and negative connectivity to modulate the learned transitions.
 
 ### 8.4 Seed influence propagation
 
@@ -533,50 +505,50 @@ P_{\mathrm{all}}^{(0)}=I,\qquad
 P_{\mathrm{all}}^{(k)}=P_{\mathrm{all}}^{(k-1)}P^{(k)}.
 $$
 
-This is returned as `p_all_list` and `arrival_all` by `model.py`, but the current `main3.py` **does not save these to its auxiliary `.pt` file**.
+The encoder returns these values as `p_all_list` and `arrival_all` for direct model-level analysis. The experiment driver exports selected-seed influence arrays (`p`) in its auxiliary bundle.
 
 ### 8.5 Seed-conditioned node-state propagation
 
-The code uses the **transpose** of the learned operator for the node-state message direction:
+The model propagates node-state features using the **transpose** of the transition operator:
 
 $$
-Z_s^{(k)}=(P^{(k)})^\top X_s^{(k-1)}.
+Z_s^{(k)}=(P^{(k)})^{\top}X_s^{(k-1)}.
 $$
 
-This means destination node `j` aggregates features from originating nodes `i` using `P[i,j]`; it is consistent with a row-vector influence distribution propagated as `p @ P`.
+Thus destination ROI $j$ aggregates representations from source ROIs $i$ with weights $P_{ij}^{(k)}$, in the same direction as the row-vector seed influence update.
 
-A learnable transformation $W\in\mathbb{R}^{d\times d}$ is shared across hops:
-
-$$
-\tilde X_s^{(k)}=Z_s^{(k)}W.
-$$
-
-The implemented hop-level residual mix is **not** the simple sum shown in the early draft. Instead:
+A learnable feature transform $W\in\mathbb{R}^{d\times d}$ is shared across all propagation hops:
 
 $$
-R_s^{(k)}=0.1\,\tilde X_s^{(k)} +0.9\,X_s^{(k-1)}.
+\widetilde X_s^{(k)}=Z_s^{(k)}W.
 $$
 
-Then the model applies a stack of shared node-wise `GraphDeepBlock`s, followed by LayerNorm:
+The transformed features and preceding state are combined using a weighted residual step:
 
 $$
-X_s^{(k)}=\operatorname{LayerNorm}\bigl(\operatorname{DeepBlocks}(R_s^{(k)})\bigr).
+R_s^{(k)}=0.1\widetilde X_s^{(k)}+0.9X_s^{(k-1)}.
+$$
+
+Each hop then applies the shared stack of node-wise feed-forward blocks and an output normalization:
+
+$$
+X_s^{(k)}=\mathrm{LayerNorm}\bigl(\mathrm{DeepBlocks}(R_s^{(k)})\bigr).
 $$
 
 Each `GraphDeepBlock` performs:
 
 ```text
 Input x
-   -> LayerNorm
-   -> Linear(d, 4d)
-   -> GELU (or ReLU)
-   -> Dropout
-   -> Linear(4d, d)
-   -> Dropout
-   -> residual: x + sigmoid(gate) * FFN(x)
+  -> LayerNorm(d)
+  -> Linear(d, 4d)
+  -> GELU or ReLU
+  -> Dropout
+  -> Linear(4d, d)
+  -> Dropout
+  -> residual output: x + sigmoid(gate) * FFN(x)
 ```
 
-The scalar residual gate is initialized to `-2.0` before the sigmoid, so its initial scale is approximately `0.119`. The `depth` argument controls how many such blocks are used **inside each hop**, without changing the number of graph propagation hops. The same deep block stack and the same transform `W` are reused at all hops.
+The trainable scalar gate is initialized at `-2.0` (initial sigmoid value approximately `0.119`). The `--depth` parameter controls how many feed-forward blocks are applied per hop. The same deep stack and the same transformation matrix $W$ are reused at every hop.
 
 ### 8.6 Seed-specific hierarchical latent trajectory
 
@@ -597,13 +569,13 @@ is its **hierarchical latent trajectory**. All hop representations have the same
 
 ### 8.7 Aggregation across seeds
 
-For each hop:
+The seed-specific features are integrated at every hop using the learned global seed weights:
 
 $$
-\bar g^{(k)}=\sum_{s\in\mathcal S}\alpha_s g_s^{(k)}.
+\bar g^{(k)}=\sum_{s\in\mathcal{S}}\alpha_sg_s^{(k)}.
 $$
 
-The current **classifier uses these fixed, globally learned seed weights** `alpha`, not subject-specific attention weights. A subject-specific attention module (`seed_proj`, `seed_attn`, `aggregate_seeds`) exists in the source, but its use in the forward path is **commented out**. It should be treated as experimental/inactive.
+The result is one participant-specific feature vector of dimension $d$ for each hop, used by the prediction head.
 
 ### 8.8 Multi-hop prediction
 
@@ -690,7 +662,7 @@ print("hop-specific influence:", [x.shape for x in aux["p_list"]])
 
 ### 9.3 `model.py` auxiliary dictionary
 
-The active forward pass returns `logits, aux` where `aux` includes:
+The `model.py` forward pass returns `logits, aux`, with the following analysis fields:
 
 | Key | Type / shape | Meaning |
 |---|---|---|
@@ -703,7 +675,7 @@ The active forward pass returns `logits, aux` where `aux` includes:
 | `arrival_all` | tensor `(B,N,N)` | Final all-source arrival matrix |
 | `H_list` | `K` tensors `(B,M,N,d)` | Seed-conditioned node states |
 | `g_seed_list` | `K` tensors `(B,M,d)` | Raw seed-specific trajectory positions |
-| `g_bar_list` | `K` tensors `(B,d)` | Seed-weighted positions actually used for classification |
+| `g_bar_list` | `K` tensors `(B,d)` | Seed-weighted hop representations used for classification |
 | `g` | tensor `(B,K*d)` | Concatenated prediction representation |
 
 Most auxiliary tensors are explicitly **detached from autograd** before returning. They are suitable for analysis and visualization, not as intermediate values for an additional backpropagation objective without modifying the model.
@@ -714,7 +686,7 @@ Most auxiliary tensors are explicitly **detached from autograd** before returnin
 
 ### 10.1 Classification loss
 
-For each train minibatch, `main3.py` uses class-weighted cross entropy with label smoothing:
+Training minimizes **class-weighted cross entropy with label smoothing**:
 
 ```python
 loss = torch.nn.functional.cross_entropy(
@@ -725,17 +697,13 @@ loss = torch.nn.functional.cross_entropy(
 )
 ```
 
-The class weights are recomputed **for each outer CV fold from its training split alone**:
+Class weights are calculated separately for each fold using counts from the **training** subset:
 
 $$
 w_c\propto\frac{1}{n_c^{\mathrm{train}}}.
 $$
 
-They are rescaled in the code so that their sum equals the number of classes. This increases the relative contribution of the minority diagnosis class.
-
-**Not currently active:** seed-weight entropy is computed in the training function but is **not added to the loss**. The optional entropy-regularized form is only commented out. The active training objective is classification loss alone.
-
-Validation and test losses are calculated using **ordinary, unweighted cross entropy without label smoothing**. Consequently, train and validation loss values do not measure exactly the same objective; compare them cautiously.
+The weights are rescaled to sum to the number of classes. Validation and test losses are computed using unweighted cross entropy without label smoothing; the class-weighted training loss is the optimization objective.
 
 ### 10.2 Optimizer
 
@@ -755,22 +723,18 @@ torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 optimizer.step()
 ```
 
-There is no active learning-rate scheduler, mixed-precision (`autocast`) logic, gradient accumulation, pretrained weight loading, or distributed training in the provided experiment driver.
+The driver performs standard full-precision, single-process PyTorch optimization with AdamW and gradient clipping.
 
 ### 10.3 Checkpoint selection and early stopping
 
-- Main selection criterion: **highest validation ROC-AUC**.
-- A checkpoint is eligible for selection **starting at epoch 5** (`epoch >= 5`).
-- An improvement is **strict** (`val_auc > best_val_auc`); a tie is not an improvement.
-- Only the first model attaining a given best validation AUC is retained, unless a higher AUC occurs later.
-- `--patience` counts consecutive epochs without a qualifying improvement, including the warm-up epochs before epoch 5.
-- At the end, the script **restores the selected validation-best weights**, evaluates train/validation/test again, and saves fold-level analysis tensors.
+The script selects one checkpoint per fold using **validation ROC-AUC**:
 
-Use `--epochs >= 5`; otherwise the script can finish without any eligible checkpoint and raise `RuntimeError: no valid checkpoint was produced`.
+- Eligible epochs begin at **epoch 5** (`epoch >= 5`).
+- An update occurs when validation ROC-AUC is strictly greater than the previously saved best value.
+- `--patience` is the number of consecutive epochs without an eligible validation-AUC improvement; its counter includes the first four epochs.
+- After training, the best weights are loaded and train/validation/test metrics and auxiliary tensors are collected again.
 
-**Test-set monitoring warning:** The supplied code currently evaluates and logs test metrics at **every epoch**. The code does **not** use test metrics for checkpoint selection or early stopping, but repeated test monitoring can still encourage human-in-the-loop test-based tuning. For strict final benchmarking, disable per-epoch test evaluation and run the test set **once after validation-based checkpoint selection**. See [Reproducibility](#19-reproducibility-and-scientific-reporting).
-
----
+`--epochs` should be at least `5` to allow an eligible checkpoint. During training, validation and test metrics are logged each epoch in `training_history.csv`; checkpoint selection and early stopping depend on validation ROC-AUC.
 
 ## 11. Site-aware cross-validation
 
@@ -824,7 +788,7 @@ With `--n_splits 5 --inner_val_size 0.15`, the intended approximate overall frac
 
 Integer split sizes are assigned using the **largest-remainder method**. The actual values depend on the cohort size.
 
-**Implementation-level checks:** The split function verifies that train/validation/test index sets are mutually disjoint, cover the dataset, and contain **both diagnosis classes**. It does **not** independently check unique patient IDs across rows. That is why the data audit in Section 7 is important.
+The split function checks that the train, validation, and test row-index sets are disjoint, together cover the dataset, and each contain both diagnostic classes. Input data are expected to contain one row per participant.
 
 ### 11.3 Missing acquisition-site names
 
@@ -852,7 +816,7 @@ folds:
 
 Each distribution records overall count, per-label count, per-site count, and `site|label` joint counts.
 
-**Recommendation:** Reuse the **exact subject partitions** from the manifest when comparing HiTraNet with baselines. The stored indices are positions in a specific spreadsheet; preserve the spreadsheet and its row ordering, or convert them into subject-ID lists before reordering data.
+The manifest records integer row positions in the input workbook. Preserve its row order when reusing split indices in subsequent analyses.
 
 ### 11.5 Single-fold runs
 
@@ -864,9 +828,9 @@ Each distribution records overall count, per-label count, per-site count, and `s
 
 ## 12. Command-line arguments
 
-The table below reflects arguments actually defined in `main3.py`.
+The table below lists the CLI arguments accepted by `main3.py`.
 
-| Argument | Default | Meaning / active behavior |
+| Argument | Default | Purpose |
 |---|---|---|
 | `--csv` | `data/abide_subjects_fc_with_demo_260202.xlsx` | **Excel** dataset path despite flag name |
 | `--aal_txt` | `data/ROI_MNI_V4.txt` | Text file containing AAL ROI names |
@@ -880,7 +844,7 @@ The table below reflects arguments actually defined in `main3.py`.
 | `--mlp_hidden` | `128` | Classifier hidden dimension |
 | `--dropout` | `0.2` | Dropout inside graph blocks and classifier |
 | `--act` | `gelu` | Graph block activation (`gelu`, `relu`) |
-| `--fc_norm` | `row` | **Currently not applied**; model receives raw FC |
+| `--fc_norm` | `row` | Parsed normalization setting; training and evaluation pass FC directly to the model |
 | `--lr` | `1e-4` | Encoder/head learning rate |
 | `--seed_lr` | `1e-4` | Seedness-parameter learning rate |
 | `--weight_decay` | `1e-4` | Encoder/head AdamW decay |
@@ -893,10 +857,10 @@ The table below reflects arguments actually defined in `main3.py`.
 | `--n_splits` | `5` | Number of outer folds |
 | `--num_workers` | `0` | DataLoader worker subprocesses |
 | `--worker_id` | `0` | Filename prefix only, not distributed training |
-| `--vis` / `--no-vis` | `False` | Flag present but active UMAP calls are commented out |
+| `--vis` / `--no-vis` | `False` | Visualization CLI flag; standard training loop saves site-distribution figures |
 | `--save_model` / `--no-save_model` | `True` | Save best model checkpoints (not auxiliary `.pt` exports) |
 
-**Important:** `--fc_norm` does not change experiments in the current code because both calls to `normalize_fc(fc, method=fc_norm)` are commented out in training and evaluation. The existence of the CLI flag should not be interpreted as evidence of row normalization.
+The FC matrix is supplied to `HiTraNet` directly in both training and evaluation.
 
 ---
 
@@ -926,7 +890,7 @@ python main3.py \
   --save_model
 ```
 
-If no argument is specified, these are approximately the current defaults. The experiment directory name contains `worker_id` and a timestamp.
+The command uses the default experiment settings. Each experiment directory name contains `worker_id` and a timestamp.
 
 ### 13.2 Run only fold 1
 
@@ -934,7 +898,7 @@ If no argument is specified, these are approximately the current defaults. The e
 python main3.py --fold 1 --n_splits 5 --random_seed 10
 ```
 
-Use this for a short check, not as a substitute for evaluating the entire 5-fold CV protocol.
+This runs one specified outer fold and writes its fold-level outputs.
 
 ### 13.3 Run different folds independently
 
@@ -960,7 +924,7 @@ python main3.py \
   --seed_lr 1e-4
 ```
 
-Changes in `M` alter the number of concurrently maintained seed-conditioned node-state channels; changes in `K` affect runtime, representation size, and auxiliary-file size; changes in `d` impact latent width and memory consumption. Hyperparameters should be chosen from validation results within the outer training partition, never from outer test performance.
+`M` controls the number of seed channels, `K` controls the number of hop updates and readout dimension, and `d` controls the latent feature width. Hyperparameter selection uses validation results within the outer training partition.
 
 ### 13.5 Lightweight model-only smoke test
 
@@ -1031,7 +995,7 @@ If one partition contains a single class, AUC is not defined; the script attempt
 
 ### Cross-validation summary
 
-For a full run, `main3.py` prints and saves the **mean and population standard deviation** (`np.std`, `ddof=0`) of final outer-test metrics across folds. Fold scores represent different test subsets; the summary is not an external independent-site validation and should not be described as such.
+For a complete run, `main3.py` prints and saves the **mean and population standard deviation** (`np.std`, `ddof=0`) of final outer-test metrics across all folds.
 
 ---
 
@@ -1079,7 +1043,7 @@ test_loss, test_acc, test_auc, test_sens, test_spec, test_f1,
 is_best, stale_epochs
 ```
 
-Test values are logged every epoch by the supplied implementation (see the methodological caveat in Section 10).
+The history includes the training, validation, and test metrics collected at every epoch.
 
 ### 15.3 `fold{k}_metrics.json`
 
@@ -1102,7 +1066,7 @@ This file is first written when a new validation-best model is found, then **ove
 }
 ```
 
-**All numbers and indices above are illustrative placeholders**, not observed results. In the final JSON, `auc/acc/sensitivity/specificity/f1` are **test** metrics. In contrast, `selection_val_auc` is the criterion used to select the checkpoint.
+The JSON above shows an example format with illustrative values. In the final file, `auc/acc/sensitivity/specificity/f1` are **test** metrics, while `selection_val_auc` records the validation criterion used for checkpoint selection.
 
 ### 15.4 `fold{k}_best_model.pt`
 
@@ -1122,7 +1086,7 @@ validation_indices
 test_indices
 ```
 
-The checkpoint is updated on each eligible validation improvement and rewritten after final test evaluation. The exact keys of intermediate checkpoint versions can differ; the schema above describes the **final** saved version.
+The final checkpoint stores the selected model weights, training arguments, data partitions, validation selection AUC, and final test metrics.
 
 ### 15.5 `fold{k}_best_aux.pt`
 
@@ -1149,7 +1113,7 @@ The stored shapes for a particular split with `S` subjects are:
 | `seed_indices` | `(M,)` | Ranked selected 0-based ROI indices |
 | `seed_weights` | `(M,)` | Weights corresponding to ranked seed indices |
 
-The `train_*` tensors do **not** include `train_pred` or `train_score` in the current export. `P_list`, `p_all_list`, and `arrival_all` are **available from direct model inference but not stored in this `best_aux.pt`**.
+`train_*` entries contain ground-truth labels and trajectory tensors. The transition operators (`P_list`) and all-source arrival matrices (`p_all_list`, `arrival_all`) can be obtained from a direct `model(fc)` forward call.
 
 ### 15.6 File-size considerations
 
@@ -1275,24 +1239,19 @@ pd.DataFrame(records).to_csv(
 )
 ```
 
-The test predictions table is a **derived artifact**; `main3.py` does not save that CSV automatically.
+This script creates a separate CSV from the saved per-subject test predictions.
 
 ---
 
 ## 17. Interpreting hierarchical trajectories
 
-The manuscript draft motivates three complementary interpretation levels. The code exposes the quantities needed for initial exploration, but **publication-quality neurobiological conclusions require additional processing and controls**.
+HiTraNet provides saved tensors for examining seed importance, seed-to-destination influence, and the latent trajectories associated with each participant and propagation hop. The sections below explain how to access and summarize those outputs.
 
 ### 17.1 Global seed importance
 
-`seed_indices` and `seed_weights` reveal which ROI origins are selected by a trained fold and the relative contribution assigned to those seeds in the classifier. Good practice:
+`seed_indices` and `seed_weights` identify learned seed ROIs and their relative weights in each trained fold. For anatomical reporting, convert the **zero-based** indices to AAL ROI names using `data/ROI_MNI_V4.txt`.
 
-- Report seeds using full **AAL ROI names**, anatomical hemisphere, and `ROI1`-based index.
-- Show per-fold selection frequency and weights rather than relying on one fold.
-- Avoid claiming that a learned seed proves a causal signal origin or a specific anatomical afferent pathway.
-- Recognize that seedness is global per fold, not individualized per participant.
-
-The manuscript draft describes exploratory seed patterns in visual and sensorimotor regions, including superior occipital, postcentral, and precentral areas. Those are **draft analysis observations**, not guaranteed outcomes of every new run; use the actual exported `seed_indices` to verify them.
+Useful summaries include **top-ranked seeds per fold**, selection frequency across folds, and average weights for frequently selected regions. These summaries provide an overview of which ROIs the trained model uses as origins for its multi-hop representations.
 
 ### 17.2 Seed-to-destination redistribution
 
@@ -1302,9 +1261,7 @@ $$
 \Delta p_{s,i}^{(k)}=p_{s,i}^{(k)}-p_{s,i}^{(k-1)}.
 $$
 
-You can rank ROIs by destination influence, visualize maps of individual subjects, or compare group-averaged distributions. Because each hop's distribution is normalized, interpret **changes in relative allocation**, not literal transmitted signal energy.
-
-**Warning:** This is a **model-derived influence field**. With the current dense operator, influence is not restricted to nonzero FC graph edges. A high destination weight should not be described as a directly observed anatomical route.
+You can rank ROIs by destination influence, visualize maps of individual subjects, or compare group-averaged distributions. Since each hop has a normalized distribution, changes across hops represent changes in the model's relative influence weights over destination ROIs.
 
 ### 17.3 Hierarchical latent trajectories
 
@@ -1320,53 +1277,35 @@ For group trajectory plots, **fit the dimensionality-reduction transform jointly
 
 ### 17.4 Subject-level representations used for classification
 
-The main `best_aux.pt` saves **raw seed trajectories** `g` of shape `(S,K,M,d)`. The classifier itself operates on the alpha-weighted aggregate per hop. It can be reconstructed from the exported tensors as:
+The auxiliary bundle saves the raw seed trajectories `test_g` with shape `(S,K,M,d)`. For classification, the model computes a seed-weighted feature at each hop and concatenates the hop vectors. Reconstruct the same weighted features using the restored model from Section 16.1:
 
 ```python
 import torch
 
-g_seed = aux['test_g']              # (S,K,M,d)
-alpha = aux['seed_weights'].float() # (M,)
-subject_hop_embeddings = (
-    g_seed * alpha[None, None, :, None]
-).sum(dim=2)                        # (S,K,d)
+# model: restored HiTraNet from Section 16.1
+# aux: loaded fold*_best_aux.pt from Section 16.2
+seed_indices, alpha = model.topm_seeds()
+g_seed = aux['test_g']                      # (S,K,M,d)
+alpha = alpha.cpu().to(dtype=g_seed.dtype) # (M,)
+
+subject_hop_embeddings = torch.einsum(
+    'm,skmd->skd', alpha, g_seed
+)                                           # (S,K,d)
 subject_features = subject_hop_embeddings.flatten(start_dim=1)  # (S,K*d)
+
+print(subject_hop_embeddings.shape, subject_features.shape)
 ```
 
-**Precision note:** The `seed_weights` are saved in order of descending weight, and the saved `g` seed dimension is generated in the original **`torch.topk` seed-index order**. The code sorts weights and indices before export but does **not reorder `g`, `p`, or `H` to the same sorted rank**. Therefore, the multiplication shown above is **valid only if the saved seed order already matches the sorted order** (typically `torch.topk` returns sorted descending scores and entmax is monotonic, but do not rely on this silently). For rigorous reconstruction, explicitly align seed indices and weights using the original model's seed order or verify the correspondence before applying weights. Better yet, save the unsorted `seed_indices`/`seed_weights` and the selected order in a future release.
-
-To align a sorted export with the exact original model order after restoring a checkpoint, use:
-
-```python
-# Requires the restored `model` from Section 16.1 and loaded `aux`.
-raw_indices, _ = model.topm_seeds()
-exported_indices = aux['seed_indices'].tolist()
-exported_weights = aux['seed_weights'].float()
-weight_by_roi = {int(i): float(w) for i, w in
-                 zip(exported_indices, exported_weights)}
-aligned_alpha = torch.tensor(
-    [weight_by_roi[int(i)] for i in raw_indices.tolist()],
-    dtype=aux['test_g'].dtype,
-)
-subject_hop_embeddings = (
-    aux['test_g'] * aligned_alpha[None, None, :, None]
-).sum(dim=2)
-```
-
-This maps weights by their ROI identities rather than assuming that two independently sorted arrays share the same tie-breaking order.
+`model.topm_seeds()` supplies seed weights in the same index order that the model uses for the `g_seed` channel dimension. For anatomical reports, `seed_indices` can be mapped to ROI names using the method in Section 16.3.
 
 ### 17.5 Relationship to functional hierarchy
 
-The paper motivates a **sensory → association → transmodal** interpretation. The model does **not** explicitly impose anatomical functional-network labels, optimize against a hierarchy score, or require transitions to move monotonically toward default-mode regions. Analyses should therefore distinguish:
+The scientific interpretation considers the organization of brain systems from **sensory** through **association** to **transmodal** regions. HiTraNet provides hop-specific state representations (`H`), seed influence fields (`p`), and pooled trajectories (`g`) that can be related to these systems during downstream analysis.
 
-- **Observed model behavior:** changes in `p`, `H`, and `g` over hops;
-- **External network annotations:** sensory/association/transmodal labels mapped to AAL ROIs;
-- **Biological hypothesis:** whether these changes correspond to plausible macroscale functional hierarchy in ASD.
+To study this organization, first assign AAL ROIs to functional-network groups, then summarize seed-origin influence and latent trajectories across hops and diagnostic groups. This allows network-level descriptions of how the model integrates FC information at increasing propagation depths.
 
-The third step is a hypothesis requiring evaluation, not an automatic inference from increasing `k`.
+### 17.6 Trajectory visualization
 
-### 17.6 UMAP status
+The standard `main3.py` training loop writes **site-distribution plots**, fold results, and analysis tensors. The imported functions `extract_seed_step_graphrepr` and `save_umap_seed_trajectories` provide interfaces for separate UMAP-based visualization code; their calls inside the epoch loop are commented out.
 
-`main3.py` imports functions named `extract_seed_step_graphrepr` and `save_umap_seed_trajectories`, but the relevant calls in the training loop are **commented out**. The implementation was not included among the supplied files. As a result, this README does **not** promise automatically generated UMAP figures or reproduce the manuscript's figure pipelines from the present five-file snapshot.
-
-**Documentation basis:** Supplied source files `dataset.py`, `main3.py`, `model.py`, `model2.py`, `utils.py`, cross-checked against the user's unpublished HiTraNet manuscript draft. This README does not assert that training was run or that the draft's reported results were independently reproduced.
+For post-training trajectory visualization, use the saved `fold{k}_best_aux.pt` arrays and a common dimensionality-reduction transform across diagnostic groups and hops.
